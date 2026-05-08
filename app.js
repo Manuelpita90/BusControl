@@ -290,3 +290,33 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("No se pudo conectar con el servidor. Verifica que la ventana negra de BusControl esté abierta.");
     });
 });
+
+// PWA Install Logic
+let deferredPrompt;
+const pwaBanner = document.getElementById('pwa-banner');
+const btnInstall = document.getElementById('btn-install');
+const btnDismiss = document.getElementById('btn-dismiss');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevenir que el mini-info-bar de Chrome aparezca en smartphones
+    e.preventDefault();
+    deferredPrompt = e;
+
+    // Mostrar nuestro banner solo si el usuario no lo ha descartado antes
+    if (!localStorage.getItem('pwaDismissed')) {
+        pwaBanner.classList.add('show');
+    }
+});
+
+btnInstall.addEventListener('click', async () => {
+    if (deferredPrompt) {
+        pwaBanner.classList.remove('show');
+        deferredPrompt.prompt();
+        deferredPrompt = null;
+    }
+});
+
+btnDismiss.addEventListener('click', () => {
+    pwaBanner.classList.remove('show');
+    localStorage.setItem('pwaDismissed', 'true');
+});
