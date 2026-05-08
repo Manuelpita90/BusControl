@@ -69,6 +69,8 @@ async function updateDashboard() {
     document.getElementById('net-balance-usd').innerText = formatCurrency(balanceUsd, 'USD');
 
     updateCharts(firebaseData);
+    populateBusSelector();
+    if (document.getElementById('ingresos').classList.contains('active')) loadIngresosTable();
 }
 
 function updateCharts(data) {
@@ -126,21 +128,63 @@ function updateCharts(data) {
     });
 }
 
+function populateBusSelector() {
+    const data = firebaseData.ingresos_diarios || [];
+    const selector = document.getElementById('bus-selector-ingresos');
+    if (!selector) return;
+
+    const currentValue = selector.value;
+    selector.innerHTML = '<option value="todos">Todos los autobuses</option>';
+
+    // Obtener autobuses únicos (filtrar vacíos por si acaso)
+    const buses = [...new Set(data.map(item => item.placa).filter(Boolean))].sort();
+
+    buses.forEach(bus => {
+        const option = document.createElement('option');
+        option.value = bus;
+        option.textContent = bus;
+        selector.appendChild(option);
+    });
+
+    if (buses.includes(currentValue)) {
+        selector.value = currentValue;
+    }
+}
+
 // Data Tables
 async function loadIngresosTable() {
     const data = firebaseData.ingresos_diarios || [];
     const tbody = document.querySelector('#income-table tbody');
     tbody.innerHTML = '';
 
-    data.forEach(row => {
+    const selectedBus = document.getElementById('bus-selector-ingresos') ? document.getElementById('bus-selector-ingresos').value : 'todos';
+    const filteredData = selectedBus === 'todos' ? data : data.filter(row => row.placa === selectedBus);
+
+    let totalVes = 0;
+    let totalUsd = 0;
+
+    filteredData.forEach(row => {
+        totalVes += row.total_ves || 0;
+        totalUsd += row.total_usd || 0;
         tbody.innerHTML += `
             <tr>
                 <td>${row.fecha}</td>
+                <td>${row.placa || '-'}</td>
                 <td>${formatCurrency(row.total_ves, 'VES')}</td>
                 <td>${formatCurrency(row.total_usd, 'USD')}</td>
             </tr>
         `;
     });
+
+    if (filteredData.length > 0) {
+        tbody.innerHTML += `
+            <tr style="background-color: rgba(255,255,255,0.05); font-weight: bold;">
+                <td colspan="2" style="text-align: right; color: var(--text-secondary);">TOTAL FILTRADO:</td>
+                <td style="color: #2ecc71;">${formatCurrency(totalVes, 'VES')}</td>
+                <td style="color: #2ecc71;">${formatCurrency(totalUsd, 'USD')}</td>
+            </tr>
+        `;
+    }
 }
 
 async function loadGastosTable() {

@@ -180,12 +180,23 @@
 
             <!-- Ingresos Section -->
             <section id="ingresos" class="content-section">
-                <h2>Ingresos Diarios (Mes Actual)</h2>
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <h2 style="margin: 0;">Ingresos Diarios (Mes Actual)</h2>
+                    <div class="filters" style="display: flex; gap: 10px; align-items: center;">
+                        <label for="bus-selector-ingresos" style="color: var(--text-secondary);">Autobús:</label>
+                        <select id="bus-selector-ingresos" onchange="loadIngresosTable()"
+                            style="padding: 8px; border-radius: 5px; background: var(--bg-card); color: white; border: 1px solid #444;">
+                            <option value="todos">Todos los autobuses</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="table-container">
                     <table id="income-table">
                         <thead>
                             <tr>
                                 <th>Fecha</th>
+                                <th>Autobús</th>
                                 <th>Monto VES</th>
                                 <th>Monto USD</th>
                             </tr>
