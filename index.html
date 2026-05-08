@@ -111,7 +111,7 @@
             </div>
             <ul class="nav-links">
                 <li class="active" onclick="showSection('dashboard')">📊 Resumen</li>
-                <li onclick="showSection('ingresos')">📈 Ingresos</li>
+                <li onclick="showSection('informe')">🚌 Informe Autobús</li>
                 <li onclick="showSection('gastos')">💳 Gastos</li>
                 <li onclick="showSection('alarmas')">⚠️ Alarmas</li>
             </ul>
@@ -178,27 +178,78 @@
                 </div>
             </section>
 
-            <!-- Ingresos Section -->
-            <section id="ingresos" class="content-section">
+            <!-- Informe Autobús Section -->
+            <section id="informe" class="content-section">
                 <div
                     style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
-                    <h2 style="margin: 0;">Ingresos Diarios (Mes Actual)</h2>
+                    <h2 style="margin: 0;">Rendimiento por Autobús (Mes Actual)</h2>
                     <div class="filters" style="display: flex; gap: 10px; align-items: center;">
-                        <label for="bus-selector-ingresos" style="color: var(--text-secondary);">Autobús:</label>
-                        <select id="bus-selector-ingresos" onchange="loadIngresosTable()"
+                        <label for="bus-selector-informe" style="color: var(--text-secondary);">Autobús:</label>
+                        <select id="bus-selector-informe" onchange="loadInformeAutobus()"
                             style="padding: 8px; border-radius: 5px; background: var(--bg-card); color: white; border: 1px solid #444;">
                             <option value="todos">Todos los autobuses</option>
                         </select>
                     </div>
                 </div>
+
+                <div class="cards-grid"
+                    style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+                    <div class="card">
+                        <div class="card-icon">📅</div>
+                        <div class="card-info">
+                            <h3>Días Trabajados</h3>
+                            <p class="amount" id="inf-dias">0</p>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">📈</div>
+                        <div class="card-info">
+                            <h3>Promedio Diario</h3>
+                            <p class="amount" id="inf-promedio-ves" style="color: #cba6f7;">Bs. 0.00</p>
+                            <p class="amount-usd" id="inf-promedio-usd">$ 0.00</p>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">📊</div>
+                        <div class="card-info">
+                            <h3>Rentabilidad</h3>
+                            <p class="amount" id="inf-rentabilidad">0.0%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                    <div class="card income">
+                        <div class="card-info">
+                            <h3>Ingresos</h3>
+                            <p class="amount" id="inf-ingresos-ves">Bs. 0.00</p>
+                            <p class="amount-usd" id="inf-ingresos-usd">$ 0.00</p>
+                        </div>
+                    </div>
+                    <div class="card expense">
+                        <div class="card-info">
+                            <h3>Gastos</h3>
+                            <p class="amount" id="inf-gastos-ves">Bs. 0.00</p>
+                            <p class="amount-usd" id="inf-gastos-usd">$ 0.00</p>
+                        </div>
+                    </div>
+                    <div class="card balance">
+                        <div class="card-info">
+                            <h3>Utilidad Neta</h3>
+                            <p class="amount" id="inf-utilidad-ves">Bs. 0.00</p>
+                            <p class="amount-usd" id="inf-utilidad-usd">$ 0.00</p>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 20px; margin-bottom: 10px;">Desglose de Gastos por Categoría</h3>
                 <div class="table-container">
-                    <table id="income-table">
+                    <table id="inf-gastos-table">
                         <thead>
                             <tr>
-                                <th>Fecha</th>
-                                <th>Autobús</th>
+                                <th>Categoría de Gasto</th>
                                 <th>Monto VES</th>
-                                <th>Monto USD</th>
+                                <th>% del Total</th>
                             </tr>
                         </thead>
                         <tbody>

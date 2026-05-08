@@ -14,14 +14,14 @@ function showSection(sectionId) {
 
     const titles = {
         'dashboard': 'Resumen General',
-        'ingresos': 'Reporte de Ingresos',
+        'informe': 'Informe por Autobús',
         'gastos': 'Reporte de Gastos',
         'alarmas': 'Alarmas de Mantenimiento'
     };
     document.getElementById('page-title').innerText = titles[sectionId];
 
     // Refresh specific data
-    if (sectionId === 'ingresos') loadIngresosTable();
+    if (sectionId === 'informe') loadInformeAutobus();
     if (sectionId === 'gastos') loadGastosTable();
     if (sectionId === 'alarmas') loadAlarmasTable();
 }
@@ -70,7 +70,7 @@ async function updateDashboard() {
 
     updateCharts(firebaseData);
     populateBusSelector();
-    if (document.getElementById('ingresos').classList.contains('active')) loadIngresosTable();
+    if (document.getElementById('informe').classList.contains('active')) loadInformeAutobus();
 }
 
 function updateCharts(data) {
@@ -130,7 +130,7 @@ function updateCharts(data) {
 
 function populateBusSelector() {
     const data = firebaseData.ingresos_diarios || [];
-    const selector = document.getElementById('bus-selector-ingresos');
+    const selector = document.getElementById('bus-selector-informe');
     if (!selector) return;
 
     const currentValue = selector.value;
@@ -151,40 +151,85 @@ function populateBusSelector() {
     }
 }
 
-// Data Tables
-async function loadIngresosTable() {
-    const data = firebaseData.ingresos_diarios || [];
-    const tbody = document.querySelector('#income-table tbody');
+// Informe Autobus Logic
+function loadInformeAutobus() {
+    const ingresosData = firebaseData.ingresos_diarios || [];
+    const gastosData = firebaseData.gastos_mes || [];
+
+    const selector = document.getElementById('bus-selector-informe');
+    const selectedBus = selector ? selector.value : 'todos';
+
+    let filteredIngresos = ingresosData;
+    // Filtrar solo gastos de tipo contado para el informe
+    let filteredGastos = gastosData.filter(g => g.tipo_pago === 'contado');
+
+    if (selectedBus !== 'todos') {
+        filteredIngresos = ingresosData.filter(row => row.placa === selectedBus);
+        filteredGastos = filteredGastos.filter(row => row.placa === selectedBus);
+    }
+
+    // 1. Días Trabajados (Contar fechas únicas)
+    const uniqueDates = new Set(filteredIngresos.map(i => i.fecha));
+    const diasTrabajados = uniqueDates.size;
+    document.getElementById('inf-dias').innerText = diasTrabajados;
+
+    // 2. Ingresos y Gastos
+    const ingresosVes = filteredIngresos.reduce((sum, i) => sum + (i.total_ves || 0), 0);
+    const ingresosUsd = filteredIngresos.reduce((sum, i) => sum + (i.total_usd || 0), 0);
+    const gastosVes = filteredGastos.reduce((sum, i) => sum + (i.monto_ves || 0), 0);
+    const gastosUsd = filteredGastos.reduce((sum, i) => sum + (i.monto_usd || 0), 0);
+
+    // 3. Utilidad y Rentabilidad
+    const utilidadVes = ingresosVes - gastosVes;
+    const utilidadUsd = ingresosUsd - gastosUsd;
+    const rentabilidad = ingresosVes > 0 ? (utilidadVes / ingresosVes) * 100 : 0;
+
+    // 4. Promedio Diario (Usamos los días que lleva el mes actual)
+    const dateStr = firebaseData.ultima_actualizacion;
+    const syncDate = dateStr ? new Date(dateStr.split(' ')[0]) : new Date();
+    const diasMes = Math.max(1, syncDate.getDate());
+    const promedioVes = ingresosVes / diasMes;
+    const promedioUsd = ingresosUsd / diasMes;
+
+    // Update UI Elements
+    document.getElementById('inf-ingresos-ves').innerText = formatCurrency(ingresosVes, 'VES');
+    document.getElementById('inf-ingresos-usd').innerText = formatCurrency(ingresosUsd, 'USD');
+    document.getElementById('inf-gastos-ves').innerText = formatCurrency(gastosVes, 'VES');
+    document.getElementById('inf-gastos-usd').innerText = formatCurrency(gastosUsd, 'USD');
+
+    const cUtil = utilidadVes >= 0 ? 'var(--success)' : 'var(--danger)';
+    document.getElementById('inf-utilidad-ves').innerText = formatCurrency(utilidadVes, 'VES');
+    document.getElementById('inf-utilidad-ves').style.color = cUtil;
+    document.getElementById('inf-utilidad-usd').innerText = formatCurrency(utilidadUsd, 'USD');
+    document.getElementById('inf-utilidad-usd').style.color = cUtil;
+
+    const cRent = rentabilidad >= 0 ? 'var(--success)' : 'var(--danger)';
+    document.getElementById('inf-rentabilidad').innerText = `${rentabilidad > 0 ? '+' : ''}${rentabilidad.toFixed(1)}%`;
+    document.getElementById('inf-rentabilidad').style.color = cRent;
+
+    document.getElementById('inf-promedio-ves').innerText = formatCurrency(promedioVes, 'VES');
+    document.getElementById('inf-promedio-usd').innerText = formatCurrency(promedioUsd, 'USD');
+
+    // 5. Desglose de Gastos
+    const breakdownMap = {};
+    filteredGastos.forEach(g => {
+        breakdownMap[g.categoria] = (breakdownMap[g.categoria] || 0) + g.monto_ves;
+    });
+
+    const breakdownArray = Object.entries(breakdownMap).sort((a, b) => b[1] - a[1]);
+    const tbody = document.querySelector('#inf-gastos-table tbody');
     tbody.innerHTML = '';
 
-    const selectedBus = document.getElementById('bus-selector-ingresos') ? document.getElementById('bus-selector-ingresos').value : 'todos';
-    const filteredData = selectedBus === 'todos' ? data : data.filter(row => row.placa === selectedBus);
-
-    let totalVes = 0;
-    let totalUsd = 0;
-
-    filteredData.forEach(row => {
-        totalVes += row.total_ves || 0;
-        totalUsd += row.total_usd || 0;
+    breakdownArray.forEach(([cat, monto]) => {
+        const pct = gastosVes > 0 ? (monto / gastosVes) * 100 : 0;
         tbody.innerHTML += `
             <tr>
-                <td>${row.fecha}</td>
-                <td>${row.placa || '-'}</td>
-                <td>${formatCurrency(row.total_ves, 'VES')}</td>
-                <td>${formatCurrency(row.total_usd, 'USD')}</td>
+                <td>${cat}</td>
+                <td>${formatCurrency(monto, 'VES')}</td>
+                <td>${pct.toFixed(1)}%</td>
             </tr>
         `;
     });
-
-    if (filteredData.length > 0) {
-        tbody.innerHTML += `
-            <tr style="background-color: rgba(255,255,255,0.05); font-weight: bold;">
-                <td colspan="2" style="text-align: right; color: var(--text-secondary);">TOTAL FILTRADO:</td>
-                <td style="color: #2ecc71;">${formatCurrency(totalVes, 'VES')}</td>
-                <td style="color: #2ecc71;">${formatCurrency(totalUsd, 'USD')}</td>
-            </tr>
-        `;
-    }
 }
 
 async function loadGastosTable() {
