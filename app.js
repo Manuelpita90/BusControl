@@ -70,6 +70,9 @@ async function updateDashboard() {
     document.getElementById('total-expense-usd').innerText = formatCurrency(gastosUsd, 'USD');
     document.getElementById('net-balance-usd').innerText = formatCurrency(balanceUsd, 'USD');
 
+    const ultimaActualizacion = firebaseData.ultima_actualizacion || "Desconocida";
+    document.getElementById('last-sync').innerText = `☁️ Última sincronización: ${ultimaActualizacion}`;
+
     updateCharts(firebaseData);
     populateBusSelector();
     if (document.getElementById('ingresos').classList.contains('active')) loadIngresosTable();
