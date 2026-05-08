@@ -52,11 +52,11 @@ async function updateDashboard() {
     // Usar || 0 evita que el valor sea 'undefined' y cause el error NaN
     const ingresos = resumen.ingresos_totales_ves || resumen.ingresos_ves || 0;
     const gastos = resumen.gastos_totales_ves || resumen.gastos_ves || 0;
-    const balance = resumen.utilidad_neta_ves || resumen.balance_ves || (ingresos - gastos) || 0;
+    const balance = resumen.saldo_remanente_ves || 0;
 
     const ingresosUsd = resumen.ingresos_totales_usd || resumen.ingresos_usd || 0;
     const gastosUsd = resumen.gastos_totales_usd || resumen.gastos_usd || 0;
-    const balanceUsd = resumen.utilidad_neta_usd || resumen.balance_usd || (ingresosUsd - gastosUsd) || 0;
+    const balanceUsd = resumen.saldo_remanente_usd || 0;
 
     document.getElementById('total-income-ves').innerText = formatCurrency(ingresos, 'VES');
     document.getElementById('total-expense-ves').innerText = formatCurrency(gastos, 'VES');
@@ -80,12 +80,12 @@ function updateCharts(data) {
     const resumen = data.resumen || {};
     const ing = resumen.ingresos_totales_ves || resumen.ingresos_ves || 0;
     const gas = resumen.gastos_totales_ves || resumen.gastos_ves || 0;
-    const bal = resumen.utilidad_neta_ves || resumen.balance_ves || (ing - gas) || 0;
+    const bal = resumen.saldo_remanente_ves || 0;
 
     charts.income = new Chart(ctxIncome, {
         type: 'bar',
         data: {
-            labels: ['Ingresos', 'Gastos', 'Balance'],
+            labels: ['Ingresos (Mes)', 'Gastos (Mes)', 'Caja (Total)'],
             datasets: [{
                 label: 'Monto (VES)',
                 data: [ing, gas, bal],
