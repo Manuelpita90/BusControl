@@ -47,11 +47,24 @@ async function updateDashboard() {
         return;
     }
 
-    const resumen = firebaseData.resumen || { ingresos_totales_ves: 0, gastos_totales_ves: 0, utilidad_neta_ves: 0 };
+    const resumen = firebaseData.resumen || {};
 
-    document.getElementById('total-income-ves').innerText = formatCurrency(resumen.ingresos_ves, 'VES');
-    document.getElementById('total-expense-ves').innerText = formatCurrency(resumen.gastos_ves, 'VES');
-    document.getElementById('net-balance-ves').innerText = formatCurrency(resumen.utilidad_neta_ves, 'VES');
+    // Usar || 0 evita que el valor sea 'undefined' y cause el error NaN
+    const ingresos = resumen.ingresos_totales_ves || resumen.ingresos_ves || 0;
+    const gastos = resumen.gastos_totales_ves || resumen.gastos_ves || 0;
+    const balance = resumen.utilidad_neta_ves || resumen.balance_ves || (ingresos - gastos) || 0;
+
+    const ingresosUsd = resumen.ingresos_totales_usd || resumen.ingresos_usd || 0;
+    const gastosUsd = resumen.gastos_totales_usd || resumen.gastos_usd || 0;
+    const balanceUsd = resumen.utilidad_neta_usd || resumen.balance_usd || (ingresosUsd - gastosUsd) || 0;
+
+    document.getElementById('total-income-ves').innerText = formatCurrency(ingresos, 'VES');
+    document.getElementById('total-expense-ves').innerText = formatCurrency(gastos, 'VES');
+    document.getElementById('net-balance-ves').innerText = formatCurrency(balance, 'VES');
+
+    document.getElementById('total-income-usd').innerText = formatCurrency(ingresosUsd, 'USD');
+    document.getElementById('total-expense-usd').innerText = formatCurrency(gastosUsd, 'USD');
+    document.getElementById('net-balance-usd').innerText = formatCurrency(balanceUsd, 'USD');
 
     updateCharts(firebaseData);
 }
@@ -65,13 +78,17 @@ function updateCharts(data) {
     if (charts.expense) charts.expense.destroy();
 
     const resumen = data.resumen || {};
+    const ing = resumen.ingresos_totales_ves || resumen.ingresos_ves || 0;
+    const gas = resumen.gastos_totales_ves || resumen.gastos_ves || 0;
+    const bal = resumen.utilidad_neta_ves || resumen.balance_ves || (ing - gas) || 0;
+
     charts.income = new Chart(ctxIncome, {
         type: 'bar',
         data: {
             labels: ['Ingresos', 'Gastos', 'Balance'],
             datasets: [{
                 label: 'Monto (VES)',
-                data: [resumen.ingresos_totales_ves, resumen.gastos_totales_ves, resumen.utilidad_neta_ves],
+                data: [ing, gas, bal],
                 backgroundColor: ['#2ecc71', '#e74c3c', '#3498db']
             }]
         },
@@ -83,14 +100,21 @@ function updateCharts(data) {
     });
 
     // Expense Distribution (Pie)
-    // In a real scenario we'd query /api/gastos/distribucion
+    let gastosMap = {};
+    (data.gastos_mes || []).forEach(g => {
+        gastosMap[g.categoria] = (gastosMap[g.categoria] || 0) + g.monto_ves;
+    });
+
+    const categorias = Object.keys(gastosMap);
+    const montos = Object.values(gastosMap);
+
     charts.expense = new Chart(ctxExpense, {
         type: 'doughnut',
         data: {
-            labels: ['Gastos Operativos', 'Mantenimiento', 'Otros'], // Mock categories
+            labels: categorias.length ? categorias : ['Sin Gastos'],
             datasets: [{
-                data: [data.gastos_ves * 0.6, data.gastos_ves * 0.3, data.gastos_ves * 0.1], // Mock distribution
-                backgroundColor: ['#e74c3c', '#f1c40f', '#95a5a6']
+                data: montos.length ? montos : [1],
+                backgroundColor: ['#e74c3c', '#f1c40f', '#95a5a6', '#3498db', '#9b59b6', '#e67e22', '#1abc9c', '#34495e']
             }]
         },
         options: {
@@ -110,8 +134,8 @@ async function loadIngresosTable() {
         tbody.innerHTML += `
             <tr>
                 <td>${row.fecha}</td>
-                <td>${formatCurrency(row.monto_ves, 'VES')}</td>
-                <td>${formatCurrency(row.monto_usd, 'USD')}</td>
+                <td>${formatCurrency(row.total_ves, 'VES')}</td>
+                <td>${formatCurrency(row.total_usd, 'USD')}</td>
             </tr>
         `;
     });
@@ -137,35 +161,26 @@ async function loadGastosTable() {
     });
 }
 
-async function loadAutobuses() {
-    const buses = await api.getAutobuses();
-    const container = document.getElementById('bus-list');
-    container.innerHTML = '';
+function loadAlarmasTable() {
+    const data = firebaseData.alarmas || [];
+    const tbody = document.querySelector('#alarms-table tbody');
+    tbody.innerHTML = '';
 
-    buses.forEach(bus => {
-        container.innerHTML += `
-            <div class="card">
-                <div class="card-icon">🚌</div>
-                <div class="card-info">
-                    <h3>${bus.placa}</h3>
-                    <p>${bus.modelo}</p>
-                    <p class="subtitle">Activo</p>
-                </div>
-            </div>
+    data.forEach(row => {
+        const alerta = row.dias_restantes <= 0 ? 'status-pending' : 'status-paid';
+        tbody.innerHTML += `
+            <tr>
+                <td>${row.placa}</td>
+                <td>${row.tipo}</td>
+                <td>${row.proximo}</td>
+                <td class="${alerta}">${row.dias_restantes <= 0 ? '¡VENCIDO!' : `Faltan ${row.dias_restantes} días`}</td>
+            </tr>
         `;
     });
 }
 
 // Initial Load
 document.addEventListener('DOMContentLoaded', () => {
-    // Verificar si se abrió como archivo local
-    if (window.location.protocol === 'file:') {
-        const msg = "⚠️ ERROR: Abriste el archivo incorrecto ⚠️\n\nNo abras index.html directamente.\nDebes ejecutar 'iniciar_web.bat' y usar la ventana que se abre (localhost:5000).";
-        alert(msg);
-        document.body.innerHTML = `<div style="color:white;text-align:center;padding:50px;"><h1>${msg.replace(/\n/g, '<br>')}</h1></div>`;
-        return;
-    }
-
     updateDashboard().catch(err => {
         console.error("Error fatal en dashboard:", err);
         alert("No se pudo conectar con el servidor. Verifica que la ventana negra de BusControl esté abierta.");
