@@ -327,3 +327,34 @@ tr:hover {
         opacity: 1;
     }
 }
+
+/* Etiquetas de Alarmas (Badges) */
+.status-badge {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-align: center;
+    display: inline-block;
+    min-width: 110px;
+    font-size: 12px;
+}
+
+.badge-vencido {
+    background-color: rgb(255, 50, 50);
+    color: white;
+}
+
+.badge-urgente {
+    background-color: rgb(255, 150, 50);
+    color: white;
+}
+
+.badge-por-vencer {
+    background-color: rgb(255, 255, 50);
+    color: black;
+}
+
+.badge-en-tiempo {
+    background-color: rgb(50, 200, 50);
+    color: black;
+}

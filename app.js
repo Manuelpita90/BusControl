@@ -332,14 +332,37 @@ function loadAlarmasTable() {
     const tbody = document.querySelector('#alarms-table tbody');
     tbody.innerHTML = '';
 
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-secondary);">No hay alarmas pendientes</td></tr>';
+        return;
+    }
+
     data.forEach(row => {
-        const alerta = row.dias_restantes <= 0 ? 'status-pending' : 'status-paid';
+        let estado = "";
+        let badgeClass = "";
+        const dias = row.dias_restantes;
+
+        if (dias <= 0) {
+            estado = "⚠ VENCIDO";
+            badgeClass = "badge-vencido";
+        } else if (dias <= 3) {
+            estado = "URGENTE";
+            badgeClass = "badge-urgente";
+        } else if (dias <= 7) {
+            estado = "POR VENCER";
+            badgeClass = "badge-por-vencer";
+        } else {
+            estado = "EN TIEMPO";
+            badgeClass = "badge-en-tiempo";
+        }
+
         tbody.innerHTML += `
             <tr>
+                <td><span class="status-badge ${badgeClass}">${estado}</span></td>
                 <td>${row.placa}</td>
                 <td>${row.tipo}</td>
-                <td>${row.proximo}</td>
-                <td class="${alerta}">${row.dias_restantes <= 0 ? '¡VENCIDO!' : `Faltan ${row.dias_restantes} días`}</td>
+                <td>${row.ultimo || 'Nunca'}</td>
+                <td>${row.proximo || 'No programado'}</td>
             </tr>
         `;
     });
