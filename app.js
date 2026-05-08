@@ -14,6 +14,7 @@ function showSection(sectionId) {
 
     const titles = {
         'dashboard': 'Resumen General',
+        'ingresos': 'Reporte de Ingresos',
         'informe': 'Informe por Autobús',
         'gastos': 'Reporte de Gastos',
         'alarmas': 'Alarmas de Mantenimiento'
@@ -21,6 +22,7 @@ function showSection(sectionId) {
     document.getElementById('page-title').innerText = titles[sectionId];
 
     // Refresh specific data
+    if (sectionId === 'ingresos') loadIngresosTable();
     if (sectionId === 'informe') loadInformeAutobus();
     if (sectionId === 'gastos') loadGastosTable();
     if (sectionId === 'alarmas') loadAlarmasTable();
@@ -70,6 +72,7 @@ async function updateDashboard() {
 
     updateCharts(firebaseData);
     populateBusSelector();
+    if (document.getElementById('ingresos').classList.contains('active')) loadIngresosTable();
     if (document.getElementById('informe').classList.contains('active')) loadInformeAutobus();
 }
 
@@ -131,23 +134,39 @@ function updateCharts(data) {
 function populateBusSelector() {
     const data = firebaseData.ingresos_diarios || [];
     const selector = document.getElementById('bus-selector-informe');
-    if (!selector) return;
-
-    const currentValue = selector.value;
-    selector.innerHTML = '<option value="">Seleccione un autobús...</option>';
 
     // Obtener autobuses únicos (filtrar vacíos por si acaso)
     const buses = [...new Set(data.map(item => item.placa).filter(Boolean))].sort();
 
-    buses.forEach(bus => {
-        const option = document.createElement('option');
-        option.value = bus;
-        option.textContent = bus;
-        selector.appendChild(option);
-    });
+    if (selector) {
+        const currentValue = selector.value;
+        selector.innerHTML = '<option value="">Seleccione un autobús...</option>';
 
-    if (buses.includes(currentValue)) {
-        selector.value = currentValue;
+        buses.forEach(bus => {
+            const option = document.createElement('option');
+            option.value = bus;
+            option.textContent = bus;
+            selector.appendChild(option);
+        });
+        if (buses.includes(currentValue)) {
+            selector.value = currentValue;
+        }
+    }
+
+    const selectorIngresos = document.getElementById('bus-selector-ingresos');
+    if (selectorIngresos) {
+        const currentValueIng = selectorIngresos.value;
+        selectorIngresos.innerHTML = '<option value="todos">Todos los autobuses</option>';
+
+        buses.forEach(bus => {
+            const option = document.createElement('option');
+            option.value = bus;
+            option.textContent = bus;
+            selectorIngresos.appendChild(option);
+        });
+        if (buses.includes(currentValueIng)) {
+            selectorIngresos.value = currentValueIng;
+        }
     }
 }
 
@@ -243,6 +262,44 @@ function loadInformeAutobus() {
             </tr>
         `;
     });
+}
+
+function loadIngresosTable() {
+    const data = firebaseData.ingresos_diarios || [];
+    const tbody = document.querySelector('#income-table tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const selectedBus = document.getElementById('bus-selector-ingresos') ? document.getElementById('bus-selector-ingresos').value : 'todos';
+    const filteredData = selectedBus === 'todos' ? data : data.filter(row => row.placa === selectedBus);
+
+    let totalVes = 0;
+    let totalUsd = 0;
+
+    filteredData.forEach(row => {
+        totalVes += row.total_ves || 0;
+        totalUsd += row.total_usd || 0;
+        tbody.innerHTML += `
+            <tr>
+                <td>${row.fecha}</td>
+                <td>${row.placa || '-'}</td>
+                <td>${formatCurrency(row.total_ves, 'VES')}</td>
+                <td>${formatCurrency(row.total_usd, 'USD')}</td>
+            </tr>
+        `;
+    });
+
+    if (filteredData.length > 0) {
+        tbody.innerHTML += `
+            <tr style="background-color: rgba(255,255,255,0.05); font-weight: bold;">
+                <td colspan="2" style="text-align: right; color: var(--text-secondary);">TOTAL FILTRADO:</td>
+                <td style="color: #2ecc71;">${formatCurrency(totalVes, 'VES')}</td>
+                <td style="color: #2ecc71;">${formatCurrency(totalUsd, 'USD')}</td>
+            </tr>
+        `;
+    } else {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-secondary);">No hay ingresos registrados</td></tr>';
+    }
 }
 
 async function loadGastosTable() {

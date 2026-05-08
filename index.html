@@ -111,6 +111,7 @@
             </div>
             <ul class="nav-links">
                 <li class="active" onclick="showSection('dashboard')">📊 Resumen</li>
+                <li onclick="showSection('ingresos')">📈 Ingresos</li>
                 <li onclick="showSection('informe')">🚌 Informe Autobús</li>
                 <li onclick="showSection('gastos')">💳 Gastos</li>
                 <li onclick="showSection('alarmas')">⚠️ Alarmas</li>
@@ -175,6 +176,36 @@
                         <h3>Distribución de Gastos</h3>
                         <canvas id="expenseChart"></canvas>
                     </div>
+                </div>
+            </section>
+
+            <!-- Ingresos Section -->
+            <section id="ingresos" class="content-section">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <h2 style="margin: 0;">Ingresos Diarios (Mes Actual)</h2>
+                    <div class="filters" style="display: flex; gap: 10px; align-items: center;">
+                        <label for="bus-selector-ingresos" style="color: var(--text-secondary);">Autobús:</label>
+                        <select id="bus-selector-ingresos" onchange="loadIngresosTable()"
+                            style="padding: 8px; border-radius: 5px; background: var(--bg-card); color: white; border: 1px solid #444;">
+                            <option value="todos">Todos los autobuses</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="income-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Autobús</th>
+                                <th>Monto VES</th>
+                                <th>Monto USD</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows will be injected by JS -->
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
