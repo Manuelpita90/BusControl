@@ -1,9 +1,9 @@
 const CACHE_NAME = 'buscontrol-v1';
 const ASSETS_TO_CACHE = [
-    '/',
-    '/index.html',
-    '/style.css',
-    '/app.js'
+    './',
+    './index.html',
+    './style.css',
+    './app.js'
 ];
 
 self.addEventListener('install', event => {

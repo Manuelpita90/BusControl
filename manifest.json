@@ -2,7 +2,7 @@
     "name": "BusControl Reportes",
     "short_name": "BusControl",
     "description": "Sistema de gestión y reportes para la flota de autobuses.",
-    "start_url": "/index.html",
+    "start_url": "./index.html",
     "display": "standalone",
     "background_color": "#1e1e1e",
     "theme_color": "#2c3e50",
