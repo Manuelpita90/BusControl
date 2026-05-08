@@ -156,7 +156,7 @@ function populateBusSelector() {
     const selectorIngresos = document.getElementById('bus-selector-ingresos');
     if (selectorIngresos) {
         const currentValueIng = selectorIngresos.value;
-        selectorIngresos.innerHTML = '<option value="todos">Todos los autobuses</option>';
+        selectorIngresos.innerHTML = '<option value="">Seleccione un autobús...</option>';
 
         buses.forEach(bus => {
             const option = document.createElement('option');
@@ -270,9 +270,14 @@ function loadIngresosTable() {
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    const selectedBus = document.getElementById('bus-selector-ingresos') ? document.getElementById('bus-selector-ingresos').value : 'todos';
-    const filteredData = selectedBus === 'todos' ? data : data.filter(row => row.placa === selectedBus);
+    const selectedBus = document.getElementById('bus-selector-ingresos') ? document.getElementById('bus-selector-ingresos').value : '';
 
+    if (!selectedBus) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-secondary);">Seleccione un autobús para ver los ingresos</td></tr>';
+        return;
+    }
+
+    const filteredData = data.filter(row => row.placa === selectedBus);
     let totalVes = 0;
     let totalUsd = 0;
 
