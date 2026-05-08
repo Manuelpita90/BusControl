@@ -53,6 +53,7 @@ async function updateDashboard() {
     const ingresos = resumen.ingresos_totales_ves || resumen.ingresos_ves || 0;
     const gastos = resumen.gastos_totales_ves || resumen.gastos_ves || 0;
     const balance = resumen.saldo_remanente_ves || 0;
+    const fondoReserva = resumen.fondo_reserva_ves || 0;
 
     const ingresosUsd = resumen.ingresos_totales_usd || resumen.ingresos_usd || 0;
     const gastosUsd = resumen.gastos_totales_usd || resumen.gastos_usd || 0;
@@ -61,6 +62,7 @@ async function updateDashboard() {
     document.getElementById('total-income-ves').innerText = formatCurrency(ingresos, 'VES');
     document.getElementById('total-expense-ves').innerText = formatCurrency(gastos, 'VES');
     document.getElementById('net-balance-ves').innerText = formatCurrency(balance, 'VES');
+    document.getElementById('reserve-fund-ves').innerText = formatCurrency(fondoReserva, 'VES');
 
     document.getElementById('total-income-usd').innerText = formatCurrency(ingresosUsd, 'USD');
     document.getElementById('total-expense-usd').innerText = formatCurrency(gastosUsd, 'USD');
