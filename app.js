@@ -134,7 +134,7 @@ function populateBusSelector() {
     if (!selector) return;
 
     const currentValue = selector.value;
-    selector.innerHTML = '<option value="todos">Todos los autobuses</option>';
+    selector.innerHTML = '<option value="">Seleccione un autobús...</option>';
 
     // Obtener autobuses únicos (filtrar vacíos por si acaso)
     const buses = [...new Set(data.map(item => item.placa).filter(Boolean))].sort();
@@ -157,16 +157,29 @@ function loadInformeAutobus() {
     const gastosData = firebaseData.gastos_mes || [];
 
     const selector = document.getElementById('bus-selector-informe');
-    const selectedBus = selector ? selector.value : 'todos';
+    const selectedBus = selector ? selector.value : '';
 
-    let filteredIngresos = ingresosData;
-    // Filtrar solo gastos de tipo contado para el informe
-    let filteredGastos = gastosData.filter(g => g.tipo_pago === 'contado');
-
-    if (selectedBus !== 'todos') {
-        filteredIngresos = ingresosData.filter(row => row.placa === selectedBus);
-        filteredGastos = filteredGastos.filter(row => row.placa === selectedBus);
+    if (!selectedBus) {
+        // Si no hay autobús seleccionado, vaciar la información
+        document.getElementById('inf-dias').innerText = '0';
+        document.getElementById('inf-ingresos-ves').innerText = 'Bs. 0.00';
+        document.getElementById('inf-ingresos-usd').innerText = '$ 0.00';
+        document.getElementById('inf-gastos-ves').innerText = 'Bs. 0.00';
+        document.getElementById('inf-gastos-usd').innerText = '$ 0.00';
+        document.getElementById('inf-utilidad-ves').innerText = 'Bs. 0.00';
+        document.getElementById('inf-utilidad-ves').style.color = '';
+        document.getElementById('inf-utilidad-usd').innerText = '$ 0.00';
+        document.getElementById('inf-utilidad-usd').style.color = '';
+        document.getElementById('inf-rentabilidad').innerText = '0.0%';
+        document.getElementById('inf-rentabilidad').style.color = '';
+        document.getElementById('inf-promedio-ves').innerText = 'Bs. 0.00';
+        document.getElementById('inf-promedio-usd').innerText = '$ 0.00';
+        document.querySelector('#inf-gastos-table tbody').innerHTML = '<tr><td colspan="3" style="text-align:center; color: var(--text-secondary);">Seleccione un autobús para ver el desglose</td></tr>';
+        return;
     }
+
+    const filteredIngresos = ingresosData.filter(row => row.placa === selectedBus);
+    const filteredGastos = gastosData.filter(g => g.tipo_pago === 'contado' && g.placa === selectedBus);
 
     // 1. Días Trabajados (Contar fechas únicas)
     const uniqueDates = new Set(filteredIngresos.map(i => i.fecha));
