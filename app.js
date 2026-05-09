@@ -196,6 +196,7 @@ function loadInformeAutobus() {
         document.getElementById('inf-rentabilidad').style.color = '';
         document.getElementById('inf-promedio-ves').innerText = 'Bs. 0.00';
         document.getElementById('inf-promedio-usd').innerText = '$ 0.00';
+        if (document.getElementById('inf-promedio-dias')) document.getElementById('inf-promedio-dias').innerText = '';
         document.querySelector('#inf-gastos-table tbody').innerHTML = '<tr><td colspan="3" style="text-align:center; color: var(--text-secondary);">Seleccione un autobús para ver el desglose</td></tr>';
         return;
     }
@@ -221,8 +222,16 @@ function loadInformeAutobus() {
 
     // 4. Promedio Diario (Usamos los días que lleva el mes actual)
     const dateStr = firebaseData.ultima_actualizacion;
-    const syncDate = dateStr ? new Date(dateStr.split(' ')[0]) : new Date();
-    const diasMes = Math.max(1, syncDate.getDate());
+    let diasMes = 1;
+    if (dateStr) {
+        // Extraer el día de "YYYY-MM-DD" para evitar problemas de zona horaria
+        const parts = dateStr.split(' ')[0].split('-');
+        if (parts.length === 3) {
+            diasMes = Math.max(1, parseInt(parts[2], 10));
+        }
+    } else {
+        diasMes = Math.max(1, new Date().getDate());
+    }
     const promedioVes = ingresosVes / diasMes;
     const promedioUsd = ingresosUsd / diasMes;
 
@@ -244,6 +253,10 @@ function loadInformeAutobus() {
 
     document.getElementById('inf-promedio-ves').innerText = formatCurrency(promedioVes, 'VES');
     document.getElementById('inf-promedio-usd').innerText = formatCurrency(promedioUsd, 'USD');
+
+    if (document.getElementById('inf-promedio-dias')) {
+        document.getElementById('inf-promedio-dias').innerText = `Calculado en base a ${diasMes} día(s)`;
+    }
 
     // 5. Desglose de Gastos
     const breakdownMap = {};
@@ -276,23 +289,38 @@ function loadIngresosTable() {
     const selectedBus = document.getElementById('bus-selector-ingresos') ? document.getElementById('bus-selector-ingresos').value : '';
 
     if (!selectedBus) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-secondary);">Seleccione un autobús para ver los ingresos</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-secondary);">Seleccione un autobús para ver los ingresos</td></tr>';
         return;
     }
 
     const filteredData = data.filter(row => row.placa === selectedBus);
     let totalVes = 0;
-    let totalUsd = 0;
+    let totalFondo = 0;
+    let totalUtilidadVes = 0;
+    let totalUtilidadUsd = 0;
 
     filteredData.forEach(row => {
-        totalVes += row.total_ves || 0;
-        totalUsd += row.total_usd || 0;
+        const montoVes = row.total_ves || 0;
+        const montoUsd = row.total_usd || 0;
+        const pctFondo = row.porcentaje_fondo !== undefined ? row.porcentaje_fondo : 15.0;
+        const fondoVes = row.fondo_ves !== undefined ? row.fondo_ves : (montoVes * (pctFondo / 100));
+        const fondoUsd = row.fondo_usd !== undefined ? row.fondo_usd : (montoUsd * (pctFondo / 100));
+
+        const utilidadVes = montoVes - fondoVes;
+        const utilidadUsd = montoUsd - fondoUsd;
+
+        totalVes += montoVes;
+        totalFondo += fondoVes;
+        totalUtilidadVes += utilidadVes;
+        totalUtilidadUsd += utilidadUsd;
+
         tbody.innerHTML += `
             <tr>
                 <td>${row.fecha}</td>
-                <td>${row.placa || '-'}</td>
-                <td>${formatCurrency(row.total_ves, 'VES')}</td>
-                <td>${formatCurrency(row.total_usd, 'USD')}</td>
+                <td>${formatCurrency(montoVes, 'VES')}</td>
+                <td>${formatCurrency(fondoVes, 'VES')} <span style="font-size: 11px; color: var(--text-secondary);">(${pctFondo}%)</span></td>
+                <td>${formatCurrency(utilidadVes, 'VES')}</td>
+                <td>${formatCurrency(utilidadUsd, 'USD')}</td>
             </tr>
         `;
     });
@@ -300,13 +328,15 @@ function loadIngresosTable() {
     if (filteredData.length > 0) {
         tbody.innerHTML += `
             <tr style="background-color: rgba(255,255,255,0.05); font-weight: bold;">
-                <td colspan="2" style="text-align: right; color: var(--text-secondary);">TOTAL FILTRADO:</td>
+                <td style="text-align: right; color: var(--text-secondary);">TOTAL:</td>
                 <td style="color: #2ecc71;">${formatCurrency(totalVes, 'VES')}</td>
-                <td style="color: #2ecc71;">${formatCurrency(totalUsd, 'USD')}</td>
+                <td style="color: #f1c40f;">${formatCurrency(totalFondo, 'VES')}</td>
+                <td style="color: #2ecc71;">${formatCurrency(totalUtilidadVes, 'VES')}</td>
+                <td style="color: #2ecc71;">${formatCurrency(totalUtilidadUsd, 'USD')}</td>
             </tr>
         `;
     } else {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-secondary);">No hay ingresos registrados</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-secondary);">No hay ingresos registrados</td></tr>';
     }
 }
 
