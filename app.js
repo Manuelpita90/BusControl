@@ -56,10 +56,13 @@ async function updateDashboard() {
     const gastos = resumen.gastos_totales_ves || resumen.gastos_ves || 0;
     const balance = resumen.saldo_remanente_ves || 0;
     const fondoReserva = resumen.fondo_reserva_ves || 0;
+    const tasaCambio = resumen.tasa_cambio || 1;
 
-    const ingresosUsd = resumen.ingresos_totales_usd || resumen.ingresos_usd || 0;
-    const gastosUsd = resumen.gastos_totales_usd || resumen.gastos_usd || 0;
-    const balanceUsd = resumen.saldo_remanente_usd || 0;
+    // Convertir a USD utilizando la tasa de cambio actual para coincidir con la app de escritorio
+    const ingresosUsd = tasaCambio > 0 ? ingresos / tasaCambio : 0;
+    const gastosUsd = tasaCambio > 0 ? gastos / tasaCambio : 0;
+    const balanceUsd = tasaCambio > 0 ? balance / tasaCambio : 0;
+    const fondoReservaUsd = tasaCambio > 0 ? fondoReserva / tasaCambio : 0;
 
     document.getElementById('total-income-ves').innerText = formatCurrency(ingresos, 'VES');
     document.getElementById('total-expense-ves').innerText = formatCurrency(gastos, 'VES');
@@ -69,6 +72,7 @@ async function updateDashboard() {
     document.getElementById('total-income-usd').innerText = formatCurrency(ingresosUsd, 'USD');
     document.getElementById('total-expense-usd').innerText = formatCurrency(gastosUsd, 'USD');
     document.getElementById('net-balance-usd').innerText = formatCurrency(balanceUsd, 'USD');
+    if (document.getElementById('reserve-fund-usd')) document.getElementById('reserve-fund-usd').innerText = formatCurrency(fondoReservaUsd, 'USD');
 
     const ultimaActualizacion = firebaseData.ultima_actualizacion || "Desconocida";
     document.getElementById('last-sync').innerText = `☁️ Última sincronización: ${ultimaActualizacion}`;
@@ -211,9 +215,13 @@ function loadInformeAutobus() {
 
     // 2. Ingresos y Gastos
     const ingresosVes = filteredIngresos.reduce((sum, i) => sum + (i.total_ves || 0), 0);
-    const ingresosUsd = filteredIngresos.reduce((sum, i) => sum + (i.total_usd || 0), 0);
     const gastosVes = filteredGastos.reduce((sum, i) => sum + (i.monto_ves || 0), 0);
-    const gastosUsd = filteredGastos.reduce((sum, i) => sum + (i.monto_usd || 0), 0);
+
+    const resumen = firebaseData.resumen || {};
+    const tasaCambio = resumen.tasa_cambio || 1;
+
+    const ingresosUsd = tasaCambio > 0 ? ingresosVes / tasaCambio : 0;
+    const gastosUsd = tasaCambio > 0 ? gastosVes / tasaCambio : 0;
 
     // 3. Utilidad y Rentabilidad
     const utilidadVes = ingresosVes - gastosVes;
