@@ -40,7 +40,10 @@ const formatCurrency = (amount, currency) => {
 // Dashboard Logic
 async function updateDashboard() {
     try {
-        const res = await fetch(`${FIREBASE_URL}/dashboard.json`);
+        const res = await fetch(`${FIREBASE_URL}/dashboard.json`, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        });
         if (!res.ok) throw new Error("Error en Firebase");
         firebaseData = await res.json() || {};
     } catch (e) {
@@ -56,7 +59,7 @@ async function updateDashboard() {
     const gastos = resumen.gastos_totales_ves || resumen.gastos_ves || 0;
     const balance = resumen.saldo_remanente_ves || 0;
     const fondoReserva = resumen.fondo_reserva_ves || 0;
-    const tasaCambio = resumen.tasa_cambio || 1;
+    const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
 
     // Convertir a USD utilizando la tasa de cambio actual para coincidir con la app de escritorio
     const ingresosUsd = tasaCambio > 0 ? ingresos / tasaCambio : 0;
@@ -75,7 +78,7 @@ async function updateDashboard() {
     if (document.getElementById('reserve-fund-usd')) document.getElementById('reserve-fund-usd').innerText = formatCurrency(fondoReservaUsd, 'USD');
 
     const ultimaActualizacion = firebaseData.ultima_actualizacion || "Desconocida";
-    document.getElementById('last-sync').innerText = `☁️ Última sincronización: ${ultimaActualizacion}`;
+    document.getElementById('last-sync').innerText = `☁️ Última sincronización: ${ultimaActualizacion} | Tasa: Bs. ${tasaCambio}`;
 
     updateCharts(firebaseData);
     populateBusSelector();
@@ -218,7 +221,7 @@ function loadInformeAutobus() {
     const gastosVes = filteredGastos.reduce((sum, i) => sum + (i.monto_ves || 0), 0);
 
     const resumen = firebaseData.resumen || {};
-    const tasaCambio = resumen.tasa_cambio || 1;
+    const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
 
     const ingresosUsd = tasaCambio > 0 ? ingresosVes / tasaCambio : 0;
     const gastosUsd = tasaCambio > 0 ? gastosVes / tasaCambio : 0;
@@ -307,15 +310,18 @@ function loadIngresosTable() {
     let totalUtilidadVes = 0;
     let totalUtilidadUsd = 0;
 
+    const resumen = firebaseData.resumen || {};
+    const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
+
     filteredData.forEach(row => {
         const montoVes = row.total_ves || 0;
-        const montoUsd = row.total_usd || 0;
+        const montoUsd = tasaCambio > 0 ? montoVes / tasaCambio : 0;
         const pctFondo = row.porcentaje_fondo !== undefined ? row.porcentaje_fondo : 15.0;
         const fondoVes = row.fondo_ves !== undefined ? row.fondo_ves : (montoVes * (pctFondo / 100));
-        const fondoUsd = row.fondo_usd !== undefined ? row.fondo_usd : (montoUsd * (pctFondo / 100));
+        const fondoUsd = tasaCambio > 0 ? fondoVes / tasaCambio : 0;
 
         const utilidadVes = montoVes - fondoVes;
-        const utilidadUsd = montoUsd - fondoUsd;
+        const utilidadUsd = tasaCambio > 0 ? utilidadVes / tasaCambio : 0;
 
         totalVes += montoVes;
         totalFondo += fondoVes;
