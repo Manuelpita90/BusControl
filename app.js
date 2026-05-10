@@ -17,6 +17,7 @@ function showSection(sectionId) {
         'ingresos': 'Reporte de Ingresos',
         'informe': 'Informe por Autobús',
         'gastos': 'Reporte de Gastos',
+        'facturas': 'Facturas por Pagar',
         'alarmas': 'Alarmas de Mantenimiento'
     };
     document.getElementById('page-title').innerText = titles[sectionId];
@@ -25,6 +26,7 @@ function showSection(sectionId) {
     if (sectionId === 'ingresos') loadIngresosTable();
     if (sectionId === 'informe') loadInformeAutobus();
     if (sectionId === 'gastos') loadGastosTable();
+    if (sectionId === 'facturas') loadFacturasTable();
     if (sectionId === 'alarmas') loadAlarmasTable();
 }
 
@@ -84,6 +86,7 @@ async function updateDashboard() {
     populateBusSelector();
     if (document.getElementById('ingresos').classList.contains('active')) loadIngresosTable();
     if (document.getElementById('informe').classList.contains('active')) loadInformeAutobus();
+    if (document.getElementById('facturas').classList.contains('active')) loadFacturasTable();
 }
 
 function updateCharts(data) {
@@ -372,6 +375,63 @@ async function loadGastosTable() {
             </tr>
         `;
     });
+}
+
+function loadFacturasTable() {
+    const data = firebaseData.facturas_pendientes || [];
+    const tbody = document.querySelector('#facturas-table tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-secondary);">No hay facturas pendientes por pagar</td></tr>';
+        if (document.getElementById('facturas-total-ves')) document.getElementById('facturas-total-ves').innerText = 'Bs. 0.00';
+        return;
+    }
+
+    let totalMonto = 0;
+    let totalAbonado = 0;
+    let totalPendiente = 0;
+
+    const today = new Date();
+
+    const resumen = firebaseData.resumen || {};
+    const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
+
+    data.forEach(row => {
+        totalMonto += row.monto_usd || 0;
+        totalAbonado += row.abonado_usd || 0;
+        totalPendiente += row.pendiente_usd || 0;
+
+        // Calcular días transcurridos
+        const invoiceDate = new Date(row.fecha + 'T00:00:00');
+        const diffDays = (today - invoiceDate) / (1000 * 60 * 60 * 24);
+        const dateStyle = diffDays > 30 ? 'color: var(--danger); font-weight: bold;' : '';
+
+        tbody.innerHTML += `
+            <tr>
+                <td style="${dateStyle}">${row.fecha}</td>
+                <td>${row.autobus}</td>
+                <td>${row.descripcion}</td>
+                <td>${formatCurrency(row.monto_usd, 'USD')}</td>
+                <td>${formatCurrency(row.abonado_usd, 'USD')}</td>
+                <td style="color: #f38ba8; font-weight: bold;">${formatCurrency(row.pendiente_usd, 'USD')}</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML += `
+        <tr style="background-color: rgba(255,255,255,0.05); font-weight: bold;">
+            <td colspan="3" style="text-align: right; color: var(--text-secondary);">TOTAL:</td>
+            <td style="color: #2ecc71;">${formatCurrency(totalMonto, 'USD')}</td>
+            <td style="color: #2ecc71;">${formatCurrency(totalAbonado, 'USD')}</td>
+            <td style="color: #f38ba8;">${formatCurrency(totalPendiente, 'USD')}</td>
+        </tr>
+    `;
+
+    if (document.getElementById('facturas-total-ves')) {
+        document.getElementById('facturas-total-ves').innerText = formatCurrency(totalPendiente * tasaCambio, 'VES');
+    }
 }
 
 function loadAlarmasTable() {

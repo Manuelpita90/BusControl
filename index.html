@@ -114,6 +114,7 @@
                 <li onclick="showSection('ingresos')">📈 Ingresos</li>
                 <li onclick="showSection('informe')">🚌 Informe Autobús</li>
                 <li onclick="showSection('gastos')">💳 Gastos</li>
+                <li onclick="showSection('facturas')">📄 Facturas Pendientes</li>
                 <li onclick="showSection('alarmas')">⚠️ Alarmas</li>
             </ul>
         </nav>
@@ -308,6 +309,37 @@
                                 <th>Estado</th>
                                 <th>Monto VES</th>
                                 <th>Monto USD</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows will be injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Facturas Section -->
+            <section id="facturas" class="content-section">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <h2 style="margin: 0;">Facturas por Pagar</h2>
+                    <div
+                        style="background-color: var(--bg-card); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--danger);">
+                        <span style="color: var(--text-secondary); font-size: 14px;">Total Adeudado: </span>
+                        <span id="facturas-total-ves"
+                            style="color: var(--danger); font-weight: bold; font-size: 16px;">Bs. 0.00</span>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="facturas-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Autobús</th>
+                                <th>Descripción</th>
+                                <th>Monto USD</th>
+                                <th>Abonado USD</th>
+                                <th>Pendiente USD</th>
                             </tr>
                         </thead>
                         <tbody>
