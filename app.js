@@ -1,522 +1,448 @@
-// ⚠️ ATENCIÓN: Reemplaza esto por tu misma URL de Firebase
-const FIREBASE_URL = "https://buscontrol-a94e7-default-rtdb.firebaseio.com";
+const App = {
+    // --- CONFIGURATION ---
+    config: {
+        firebaseUrl: "https://buscontrol-a94e7-default-rtdb.firebaseio.com", // ⚠️ ATENCIÓN: Reemplaza esto por tu misma URL de Firebase
+        themeColors: {
+            success: '#22C55E',
+            danger: '#FB7185',
+            accent: '#F97316',
+            warning: '#FBBF24',
+            textSecondary: '#94A3B8',
+            borderColor: '#475569',
+            bgCard: '#334155',
+            sky: '#38BDF8',
+            indigo: '#818CF8',
+            violet: '#A78BFA',
+            cyan: '#22D3EE'
+        }
+    },
 
-let charts = {};
-let firebaseData = {}; // Cache local de la data
+    // --- STATE MANAGEMENT ---
+    state: {
+        data: {}, // Local cache for Firebase data
+        charts: {} // Instances of Chart.js
+    },
 
-// Navigation
-function showSection(sectionId) {
-    document.querySelectorAll('.content-section').forEach(el => el.classList.remove('active'));
-    document.getElementById(sectionId).classList.add('active');
+    // --- INITIALIZATION ---
+    init() {
+        App.pwa.init();
+        App.mobile.init();
+        App.update(); // Initial data load
+    },
 
-    document.querySelectorAll('.nav-links li').forEach(el => el.classList.remove('active'));
-    document.querySelector(`li[onclick="showSection('${sectionId}')"]`).classList.add('active');
+    // --- CORE LOGIC ---
+    async update() {
+        const success = await App.api.fetchDashboardData();
+        if (!success) return;
 
-    const titles = {
-        'dashboard': 'Resumen General',
-        'ingresos': 'Reporte de Ingresos',
-        'informe': 'Informe por Autobús',
-        'gastos': 'Reporte de Gastos',
-        'facturas': 'Facturas por Pagar',
-        'alarmas': 'Alarmas de Mantenimiento'
-    };
-    document.getElementById('page-title').innerText = titles[sectionId];
+        App.ui.updateHeader();
+        App.ui.updateDashboardCards();
+        App.charts.updateAll();
+        App.ui.populateBusSelectors();
 
-    // Refresh specific data
-    if (sectionId === 'ingresos') loadIngresosTable();
-    if (sectionId === 'informe') loadInformeAutobus();
-    if (sectionId === 'gastos') loadGastosTable();
-    if (sectionId === 'facturas') loadFacturasTable();
-    if (sectionId === 'alarmas') loadAlarmasTable();
-}
+        // Refresh the currently active section's table data
+        const activeSection = document.querySelector('.content-section.active');
+        if (activeSection) {
+            App.ui.showSection(activeSection.id, false); // false to prevent re-hiding other sections
+        }
+    },
 
-// Formatting
-const formatCurrency = (amount, currency) => {
-    return new Intl.NumberFormat('es-VE', {
-        style: 'currency',
-        currency: currency,
-        minimumFractionDigits: 2
-    }).format(amount);
-};
+    // --- API / DATA HANDLING ---
+    api: {
+        async fetchDashboardData() {
+            try {
+                const res = await fetch(`${App.config.firebaseUrl}/dashboard.json`, {
+                    cache: 'no-store',
+                    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+                });
+                if (!res.ok) throw new Error("Error en la respuesta de Firebase");
+                App.state.data = await res.json() || {};
+                return true;
+            } catch (e) {
+                console.error(e);
+                alert("Error al cargar datos desde Firebase. Verifique la conexión y que el servidor esté activo.");
+                return false;
+            }
+        }
+    },
 
-// Dashboard Logic
-async function updateDashboard() {
-    try {
-        const res = await fetch(`${FIREBASE_URL}/dashboard.json`, {
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-        });
-        if (!res.ok) throw new Error("Error en Firebase");
-        firebaseData = await res.json() || {};
-    } catch (e) {
-        console.error(e);
-        alert("Error al cargar datos desde Firebase.");
-        return;
-    }
+    // --- UI RENDERING & MANIPULATION ---
+    ui: {
+        showSection(sectionId, updateNav = true) {
+            if (updateNav) {
+                document.querySelectorAll('.content-section').forEach(el => el.classList.remove('active'));
+                document.getElementById(sectionId).classList.add('active');
 
-    const resumen = firebaseData.resumen || {};
+                document.querySelectorAll('.nav-links li').forEach(el => el.classList.remove('active'));
+                document.querySelector(`li[onclick="App.ui.showSection('${sectionId}')"]`).classList.add('active');
 
-    // Usar || 0 evita que el valor sea 'undefined' y cause el error NaN
-    const ingresos = resumen.ingresos_totales_ves || resumen.ingresos_ves || 0;
-    const gastos = resumen.gastos_totales_ves || resumen.gastos_ves || 0;
-    const balance = resumen.saldo_remanente_ves || 0;
-    const fondoReserva = resumen.fondo_reserva_ves || 0;
+                const titles = {
+                    'dashboard': 'Resumen General', 'ingresos': 'Reporte de Ingresos',
+                    'informe': 'Informe por Autobús', 'gastos': 'Reporte de Gastos',
+                    'facturas': 'Facturas por Pagar', 'alarmas': 'Alarmas de Mantenimiento'
+                };
+                document.getElementById('page-title').innerText = titles[sectionId];
+            }
 
-    const retirosVes = resumen.retiros_ves || (firebaseData.gastos_mes || [])
-        .filter(g => g.categoria && g.categoria.toUpperCase().includes('RETIRO'))
-        .reduce((sum, g) => sum + g.monto_ves, 0) || 0;
-
-    const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
-
-    // Convertir a USD utilizando la tasa de cambio actual para coincidir con la app de escritorio
-    const ingresosUsd = tasaCambio > 0 ? ingresos / tasaCambio : 0;
-    const gastosUsd = tasaCambio > 0 ? gastos / tasaCambio : 0;
-    const balanceUsd = tasaCambio > 0 ? balance / tasaCambio : 0;
-    const fondoReservaUsd = tasaCambio > 0 ? fondoReserva / tasaCambio : 0;
-    const retirosUsd = tasaCambio > 0 ? retirosVes / tasaCambio : 0;
-
-    document.getElementById('total-income-ves').innerText = formatCurrency(ingresos, 'VES');
-    document.getElementById('total-expense-ves').innerText = formatCurrency(gastos, 'VES');
-    document.getElementById('net-balance-ves').innerText = formatCurrency(balance, 'VES');
-    document.getElementById('reserve-fund-ves').innerText = formatCurrency(fondoReserva, 'VES');
-
-    document.getElementById('total-income-usd').innerText = formatCurrency(ingresosUsd, 'USD');
-    document.getElementById('total-expense-usd').innerText = formatCurrency(gastosUsd, 'USD');
-    document.getElementById('net-balance-usd').innerText = formatCurrency(balanceUsd, 'USD');
-    if (document.getElementById('reserve-fund-usd')) document.getElementById('reserve-fund-usd').innerText = formatCurrency(fondoReservaUsd, 'USD');
-    if (document.getElementById('withdraw-ves')) document.getElementById('withdraw-ves').innerText = formatCurrency(retirosVes, 'VES');
-    if (document.getElementById('withdraw-usd')) document.getElementById('withdraw-usd').innerText = formatCurrency(retirosUsd, 'USD');
-
-    const ultimaActualizacion = firebaseData.ultima_actualizacion || "Desconocida";
-    document.getElementById('last-sync').innerText = `☁️ Última sincronización: ${ultimaActualizacion} | Tasa: Bs. ${tasaCambio}`;
-
-    updateCharts(firebaseData);
-    populateBusSelector();
-    if (document.getElementById('ingresos').classList.contains('active')) loadIngresosTable();
-    if (document.getElementById('informe').classList.contains('active')) loadInformeAutobus();
-    if (document.getElementById('facturas').classList.contains('active')) loadFacturasTable();
-}
-
-function updateCharts(data) {
-    const ctxIncome = document.getElementById('incomeChart').getContext('2d');
-    const ctxExpense = document.getElementById('expenseChart').getContext('2d');
-
-    // Destroy existing if needed
-    if (charts.income) charts.income.destroy();
-    if (charts.expense) charts.expense.destroy();
-
-    const resumen = data.resumen || {};
-    const ing = resumen.ingresos_totales_ves || resumen.ingresos_ves || 0;
-    const gas = resumen.gastos_totales_ves || resumen.gastos_ves || 0;
-    const bal = resumen.saldo_remanente_ves || 0;
-
-    charts.income = new Chart(ctxIncome, {
-        type: 'bar',
-        data: {
-            labels: ['Ingresos (Mes)', 'Gastos (Mes)', 'Caja (Total)'],
-            datasets: [{
-                label: 'Monto (VES)',
-                data: [ing, gas, bal],
-                backgroundColor: ['#2ecc71', '#e74c3c', '#3498db']
-            }]
+            // Load table data for the specific section
+            const tableLoaders = {
+                'ingresos': App.tables.loadIngresos, 'informe': App.tables.loadInformeAutobus,
+                'gastos': App.tables.loadGastos, 'facturas': App.tables.loadFacturas,
+                'alarmas': App.tables.loadAlarmas
+            };
+            if (tableLoaders[sectionId]) {
+                tableLoaderssectionId;
+            }
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } }
-        }
-    });
 
-    // Expense Distribution (Pie)
-    let gastosMap = {};
-    (data.gastos_mes || []).forEach(g => {
-        gastosMap[g.categoria] = (gastosMap[g.categoria] || 0) + g.monto_ves;
-    });
-
-    const categorias = Object.keys(gastosMap);
-    const montos = Object.values(gastosMap);
-
-    charts.expense = new Chart(ctxExpense, {
-        type: 'doughnut',
-        data: {
-            labels: categorias.length ? categorias : ['Sin Gastos'],
-            datasets: [{
-                data: montos.length ? montos : [1],
-                backgroundColor: ['#e74c3c', '#f1c40f', '#95a5a6', '#3498db', '#9b59b6', '#e67e22', '#1abc9c', '#34495e']
-            }]
+        updateHeader() {
+            const { ultima_actualizacion = "Desconocida", resumen = {} } = App.state.data;
+            const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
+            document.getElementById('last-sync').innerText = `☁️ Última sincronización: ${ultima_actualizacion} | Tasa: Bs. ${tasaCambio.toFixed(2)}`;
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
+
+        updateDashboardCards() {
+            const { resumen = {}, gastos_mes = [] } = App.state.data;
+            const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
+            const get = (key, fallback = 0) => resumen[key] || fallback;
+            const toUsd = (ves) => (tasaCambio > 0 ? ves / tasaCambio : 0);
+
+            const ingresos = get('ingresos_totales_ves', get('ingresos_ves'));
+            const gastos = get('gastos_totales_ves', get('gastos_ves'));
+            const balance = get('saldo_remanente_ves');
+            const fondoReserva = get('fondo_reserva_ves');
+            const retirosVes = get('retiros_ves', gastos_mes.filter(g => g.categoria?.toUpperCase().includes('RETIRO')).reduce((s, g) => s + g.monto_ves, 0));
+
+            App.ui.updateCard('total-income', ingresos, toUsd(ingresos));
+            App.ui.updateCard('total-expense', gastos, toUsd(gastos));
+            App.ui.updateCard('net-balance', balance, toUsd(balance));
+            App.ui.updateCard('reserve-fund', fondoReserva, toUsd(fondoReserva));
+            App.ui.updateCard('withdraw', retirosVes, toUsd(retirosVes));
+        },
+
+        updateCard(id, ves, usd) {
+            const elVes = document.getElementById(`${id}-ves`);
+            const elUsd = document.getElementById(`${id}-usd`);
+            if (elVes) elVes.innerText = App.format.currency(ves, 'VES');
+            if (elUsd) elUsd.innerText = App.format.currency(usd, 'USD');
+        },
+
+        populateBusSelectors() {
+            const buses = [...new Set((App.state.data.ingresos_diarios || []).map(i => i.placa).filter(Boolean))].sort();
+            ['bus-selector-informe', 'bus-selector-ingresos'].forEach(selectorId => {
+                const selector = document.getElementById(selectorId);
+                if (!selector) return;
+
+                const currentValue = selector.value;
+                selector.innerHTML = '<option value="">Seleccione un autobús...</option>';
+                buses.forEach(bus => selector.innerHTML += `<option value="${bus}">${bus}</option>`);
+                if (buses.includes(currentValue)) selector.value = currentValue;
+            });
         }
-    });
-}
+    },
 
-function populateBusSelector() {
-    const data = firebaseData.ingresos_diarios || [];
-    const selector = document.getElementById('bus-selector-informe');
+    // --- CHART RENDERING ---
+    charts: {
+        destroyAll() {
+            Object.values(App.state.charts).forEach(chart => chart.destroy());
+            App.state.charts = {};
+        },
 
-    // Obtener autobuses únicos (filtrar vacíos por si acaso)
-    const buses = [...new Set(data.map(item => item.placa).filter(Boolean))].sort();
+        updateAll() {
+            App.charts.destroyAll();
+            App.charts.createSummaryChart();
+            App.charts.createExpenseChart();
+        },
 
-    if (selector) {
-        const currentValue = selector.value;
-        selector.innerHTML = '<option value="">Seleccione un autobús...</option>';
+        createSummaryChart() {
+            const ctx = document.getElementById('incomeChart').getContext('2d');
+            const { resumen = {} } = App.state.data;
+            const ing = resumen.ingresos_totales_ves || resumen.ingresos_ves || 0;
+            const gas = resumen.gastos_totales_ves || resumen.gastos_ves || 0;
+            const bal = resumen.saldo_remanente_ves || 0;
 
-        buses.forEach(bus => {
-            const option = document.createElement('option');
-            option.value = bus;
-            option.textContent = bus;
-            selector.appendChild(option);
-        });
-        if (buses.includes(currentValue)) {
-            selector.value = currentValue;
-        }
-    }
+            App.state.charts.summary = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Ingresos (Mes)', 'Gastos (Mes)', 'Caja (Total)'],
+                    datasets: [{
+                        label: 'Monto (VES)',
+                        data: [ing, gas, bal],
+                        backgroundColor: [App.config.themeColors.success, App.config.themeColors.danger, App.config.themeColors.accent]
+                    }]
+                },
+                options: App.charts.getDefaultOptions()
+            });
+        },
 
-    const selectorIngresos = document.getElementById('bus-selector-ingresos');
-    if (selectorIngresos) {
-        const currentValueIng = selectorIngresos.value;
-        selectorIngresos.innerHTML = '<option value="">Seleccione un autobús...</option>';
+        createExpenseChart() {
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            const gastosMap = (App.state.data.gastos_mes || []).reduce((acc, g) => {
+                acc[g.categoria] = (acc[g.categoria] || 0) + g.monto_ves;
+                return acc;
+            }, {});
 
-        buses.forEach(bus => {
-            const option = document.createElement('option');
-            option.value = bus;
-            option.textContent = bus;
-            selectorIngresos.appendChild(option);
-        });
-        if (buses.includes(currentValueIng)) {
-            selectorIngresos.value = currentValueIng;
-        }
-    }
-}
+            const labels = Object.keys(gastosMap).length ? Object.keys(gastosMap) : ['Sin Gastos'];
+            const data = Object.keys(gastosMap).length ? Object.values(gastosMap) : [1];
 
-// Informe Autobus Logic
-function loadInformeAutobus() {
-    const ingresosData = firebaseData.ingresos_diarios || [];
-    const gastosData = firebaseData.gastos_mes || [];
+            App.state.charts.expense = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: Object.values(App.config.themeColors),
+                        borderColor: App.config.themeColors.bgCard
+                    }]
+                },
+                options: App.charts.getDoughnutOptions()
+            });
+        },
 
-    const selector = document.getElementById('bus-selector-informe');
-    const selectedBus = selector ? selector.value : '';
+        getDefaultOptions: () => ({
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { ticks: { color: App.config.themeColors.textSecondary }, grid: { color: App.config.themeColors.borderColor } },
+                x: { ticks: { color: App.config.themeColors.textSecondary }, grid: { display: false } }
+            }
+        }),
 
-    if (!selectedBus) {
-        // Si no hay autobús seleccionado, vaciar la información
-        document.getElementById('inf-dias').innerText = '0';
-        document.getElementById('inf-ingresos-ves').innerText = 'Bs. 0.00';
-        document.getElementById('inf-ingresos-usd').innerText = '$ 0.00';
-        document.getElementById('inf-gastos-ves').innerText = 'Bs. 0.00';
-        document.getElementById('inf-gastos-usd').innerText = '$ 0.00';
-        document.getElementById('inf-utilidad-ves').innerText = 'Bs. 0.00';
-        document.getElementById('inf-utilidad-ves').style.color = '';
-        document.getElementById('inf-utilidad-usd').innerText = '$ 0.00';
-        document.getElementById('inf-utilidad-usd').style.color = '';
-        document.getElementById('inf-rentabilidad').innerText = '0.0%';
-        document.getElementById('inf-rentabilidad').style.color = '';
-        document.getElementById('inf-promedio-ves').innerText = 'Bs. 0.00';
-        document.getElementById('inf-promedio-usd').innerText = '$ 0.00';
-        if (document.getElementById('inf-promedio-dias')) document.getElementById('inf-promedio-dias').innerText = '';
-        document.querySelector('#inf-gastos-table tbody').innerHTML = '<tr><td colspan="3" style="text-align:center; color: var(--text-secondary);">Seleccione un autobús para ver el desglose</td></tr>';
-        return;
-    }
+        getDoughnutOptions: () => ({
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { color: App.config.themeColors.textSecondary } }
+            }
+        })
+    },
 
-    const filteredIngresos = ingresosData.filter(row => row.placa === selectedBus);
-    const filteredGastos = gastosData.filter(g => g.tipo_pago === 'contado' && g.placa === selectedBus);
+    // --- TABLE RENDERING ---
+    tables: {
+        render(tbody, data, rowHtml, noDataMessage) {
+            if (!tbody) return;
+            if (!data || data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color: var(--text-secondary);">${noDataMessage}</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = data.map(rowHtml).join('');
+        },
 
-    // 1. Días Trabajados (Contar fechas únicas)
-    const uniqueDates = new Set(filteredIngresos.map(i => i.fecha));
-    const diasTrabajados = uniqueDates.size;
-    document.getElementById('inf-dias').innerText = diasTrabajados;
+        loadIngresos() {
+            const tbody = document.querySelector('#income-table tbody');
+            const selectedBus = document.getElementById('bus-selector-ingresos')?.value;
+            if (!selectedBus) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-secondary);">Seleccione un autobús para ver los ingresos</td></tr>';
+                return;
+            }
 
-    // 2. Ingresos y Gastos
-    const ingresosVes = filteredIngresos.reduce((sum, i) => sum + (i.total_ves || 0), 0);
-    const gastosVes = filteredGastos.reduce((sum, i) => sum + (i.monto_ves || 0), 0);
+            const data = (App.state.data.ingresos_diarios || []).filter(row => row.placa === selectedBus);
+            const tasaCambio = parseFloat(App.state.data.resumen?.tasa_cambio) || 1;
+            let totals = { ves: 0, fondo: 0, utilidadVes: 0, utilidadUsd: 0 };
 
-    const resumen = firebaseData.resumen || {};
-    const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
+            const rowHtml = (row) => {
+                const montoVes = row.total_ves || 0;
+                const pctFondo = row.porcentaje_fondo ?? 15.0;
+                const fondoVes = row.fondo_ves ?? (montoVes * (pctFondo / 100));
+                const utilidadVes = montoVes - fondoVes;
+                const utilidadUsd = tasaCambio > 0 ? utilidadVes / tasaCambio : 0;
 
-    const ingresosUsd = tasaCambio > 0 ? ingresosVes / tasaCambio : 0;
-    const gastosUsd = tasaCambio > 0 ? gastosVes / tasaCambio : 0;
+                totals.ves += montoVes;
+                totals.fondo += fondoVes;
+                totals.utilidadVes += utilidadVes;
+                totals.utilidadUsd += utilidadUsd;
 
-    // 3. Utilidad y Rentabilidad
-    const utilidadVes = ingresosVes - gastosVes;
-    const utilidadUsd = ingresosUsd - gastosUsd;
-    const rentabilidad = ingresosVes > 0 ? (utilidadVes / ingresosVes) * 100 : 0;
+                return `<tr>
+                    <td>${row.fecha}</td>
+                    <td>${App.format.currency(montoVes, 'VES')}</td>
+                    <td>${App.format.currency(fondoVes, 'VES')} <span style="font-size: 11px; color: var(--text-secondary);">(${pctFondo}%)</span></td>
+                    <td>${App.format.currency(utilidadVes, 'VES')}</td>
+                    <td>${App.format.currency(utilidadUsd, 'USD')}</td>
+                </tr>`;
+            };
 
-    // 4. Promedio Diario (Usamos los días que lleva el mes actual)
-    const dateStr = firebaseData.ultima_actualizacion;
-    let diasMes = 1;
-    if (dateStr) {
-        // Extraer el día de "YYYY-MM-DD" para evitar problemas de zona horaria
-        const parts = dateStr.split(' ')[0].split('-');
-        if (parts.length === 3) {
-            diasMes = Math.max(1, parseInt(parts[2], 10));
-        }
-    } else {
-        diasMes = Math.max(1, new Date().getDate());
-    }
-    const promedioVes = ingresosVes / diasMes;
-    const promedioUsd = ingresosUsd / diasMes;
+            App.tables.render(tbody, data, rowHtml, 'No hay ingresos registrados para este autobús.');
+            
+            if (data.length > 0) {
+                tbody.innerHTML += `<tr style="background-color: rgba(255,255,255,0.05); font-weight: bold;">
+                    <td style="text-align: right; color: var(--text-secondary);">TOTAL:</td>
+                    <td style="color: var(--success);">${App.format.currency(totals.ves, 'VES')}</td>
+                    <td style="color: var(--warning);">${App.format.currency(totals.fondo, 'VES')}</td>
+                    <td style="color: var(--success);">${App.format.currency(totals.utilidadVes, 'VES')}</td>
+                    <td style="color: var(--success);">${App.format.currency(totals.utilidadUsd, 'USD')}</td>
+                </tr>`;
+            }
+        },
 
-    // Update UI Elements
-    document.getElementById('inf-ingresos-ves').innerText = formatCurrency(ingresosVes, 'VES');
-    document.getElementById('inf-ingresos-usd').innerText = formatCurrency(ingresosUsd, 'USD');
-    document.getElementById('inf-gastos-ves').innerText = formatCurrency(gastosVes, 'VES');
-    document.getElementById('inf-gastos-usd').innerText = formatCurrency(gastosUsd, 'USD');
+        loadInformeAutobus() {
+            const selectedBus = document.getElementById('bus-selector-informe')?.value;
+            if (!selectedBus) {
+                // Reset UI if no bus is selected
+                ['inf-dias', 'inf-ingresos-ves', 'inf-ingresos-usd', 'inf-gastos-ves', 'inf-gastos-usd', 'inf-utilidad-ves', 'inf-utilidad-usd', 'inf-rentabilidad', 'inf-promedio-ves', 'inf-promedio-usd', 'inf-promedio-dias']
+                    .forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.innerText = id.includes('dias') ? '0' : '...';
+                    });
+                document.querySelector('#inf-gastos-table tbody').innerHTML = '<tr><td colspan="3" style="text-align:center; color: var(--text-secondary);">Seleccione un autobús</td></tr>';
+                return;
+            }
+            
+            const { ingresos_diarios = [], gastos_mes = [], resumen = {} } = App.state.data;
+            const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
+            const toUsd = (ves) => tasaCambio > 0 ? ves / tasaCambio : 0;
 
-    const cUtil = utilidadVes >= 0 ? 'var(--success)' : 'var(--danger)';
-    document.getElementById('inf-utilidad-ves').innerText = formatCurrency(utilidadVes, 'VES');
-    document.getElementById('inf-utilidad-ves').style.color = cUtil;
-    document.getElementById('inf-utilidad-usd').innerText = formatCurrency(utilidadUsd, 'USD');
-    document.getElementById('inf-utilidad-usd').style.color = cUtil;
+            const filteredIngresos = ingresos_diarios.filter(i => i.placa === selectedBus);
+            const filteredGastos = gastos_mes.filter(g => g.tipo_pago === 'contado' && g.placa === selectedBus);
 
-    const cRent = rentabilidad >= 0 ? 'var(--success)' : 'var(--danger)';
-    document.getElementById('inf-rentabilidad').innerText = `${rentabilidad > 0 ? '+' : ''}${rentabilidad.toFixed(1)}%`;
-    document.getElementById('inf-rentabilidad').style.color = cRent;
+            const diasTrabajados = new Set(filteredIngresos.map(i => i.fecha)).size;
+            const ingresosVes = filteredIngresos.reduce((sum, i) => sum + (i.total_ves || 0), 0);
+            const gastosVes = filteredGastos.reduce((sum, g) => sum + (g.monto_ves || 0), 0);
+            const utilidadVes = ingresosVes - gastosVes;
+            const rentabilidad = ingresosVes > 0 ? (utilidadVes / ingresosVes) * 100 : 0;
+            const diasMes = Math.max(1, new Date(App.state.data.ultima_actualizacion?.split(' ')[0] || new Date()).getDate());
+            const promedioVes = ingresosVes / diasMes;
 
-    document.getElementById('inf-promedio-ves').innerText = formatCurrency(promedioVes, 'VES');
-    document.getElementById('inf-promedio-usd').innerText = formatCurrency(promedioUsd, 'USD');
+            document.getElementById('inf-dias').innerText = diasTrabajados;
+            document.getElementById('inf-ingresos-ves').innerText = App.format.currency(ingresosVes, 'VES');
+            document.getElementById('inf-ingresos-usd').innerText = App.format.currency(toUsd(ingresosVes), 'USD');
+            document.getElementById('inf-gastos-ves').innerText = App.format.currency(gastosVes, 'VES');
+            document.getElementById('inf-gastos-usd').innerText = App.format.currency(toUsd(gastosVes), 'USD');
+            document.getElementById('inf-utilidad-ves').innerText = App.format.currency(utilidadVes, 'VES');
+            document.getElementById('inf-utilidad-usd').innerText = App.format.currency(toUsd(utilidadVes), 'USD');
+            document.getElementById('inf-rentabilidad').innerText = `${rentabilidad > 0 ? '+' : ''}${rentabilidad.toFixed(1)}%`;
+            document.getElementById('inf-promedio-ves').innerText = App.format.currency(promedioVes, 'VES');
+            document.getElementById('inf-promedio-usd').innerText = App.format.currency(toUsd(promedioVes), 'USD');
+            document.getElementById('inf-promedio-dias').innerText = `Calculado en base a ${diasMes} día(s)`;
 
-    if (document.getElementById('inf-promedio-dias')) {
-        document.getElementById('inf-promedio-dias').innerText = `Calculado en base a ${diasMes} día(s)`;
-    }
+            ['inf-utilidad-ves', 'inf-utilidad-usd'].forEach(id => document.getElementById(id).style.color = utilidadVes >= 0 ? 'var(--success)' : 'var(--danger)');
+            document.getElementById('inf-rentabilidad').style.color = rentabilidad >= 0 ? 'var(--success)' : 'var(--danger)';
 
-    // 5. Desglose de Gastos
-    const breakdownMap = {};
-    filteredGastos.forEach(g => {
-        breakdownMap[g.categoria] = (breakdownMap[g.categoria] || 0) + g.monto_ves;
-    });
-
-    const breakdownArray = Object.entries(breakdownMap).sort((a, b) => b[1] - a[1]);
-    const tbody = document.querySelector('#inf-gastos-table tbody');
-    tbody.innerHTML = '';
-
-    breakdownArray.forEach(([cat, monto]) => {
-        const pct = gastosVes > 0 ? (monto / gastosVes) * 100 : 0;
-        tbody.innerHTML += `
-            <tr>
+            const breakdownMap = filteredGastos.reduce((acc, g) => {
+                acc[g.categoria] = (acc[g.categoria] || 0) + g.monto_ves;
+                return acc;
+            }, {});
+            const breakdownArray = Object.entries(breakdownMap).sort((a, b) => b[1] - a[1]);
+            const tbody = document.querySelector('#inf-gastos-table tbody');
+            const rowHtml = ([cat, monto]) => `<tr>
                 <td>${cat}</td>
-                <td>${formatCurrency(monto, 'VES')}</td>
-                <td>${pct.toFixed(1)}%</td>
-            </tr>
-        `;
-    });
-}
+                <td>${App.format.currency(monto, 'VES')}</td>
+                <td>${gastosVes > 0 ? (monto / gastosVes * 100).toFixed(1) : '0.0'}%</td>
+            </tr>`;
+            App.tables.render(tbody, breakdownArray, rowHtml, 'Sin gastos para este autobús.');
+        },
 
-function loadIngresosTable() {
-    const data = firebaseData.ingresos_diarios || [];
-    const tbody = document.querySelector('#income-table tbody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-
-    const selectedBus = document.getElementById('bus-selector-ingresos') ? document.getElementById('bus-selector-ingresos').value : '';
-
-    if (!selectedBus) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-secondary);">Seleccione un autobús para ver los ingresos</td></tr>';
-        return;
-    }
-
-    const filteredData = data.filter(row => row.placa === selectedBus);
-    let totalVes = 0;
-    let totalFondo = 0;
-    let totalUtilidadVes = 0;
-    let totalUtilidadUsd = 0;
-
-    const resumen = firebaseData.resumen || {};
-    const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
-
-    filteredData.forEach(row => {
-        const montoVes = row.total_ves || 0;
-        const montoUsd = tasaCambio > 0 ? montoVes / tasaCambio : 0;
-        const pctFondo = row.porcentaje_fondo !== undefined ? row.porcentaje_fondo : 15.0;
-        const fondoVes = row.fondo_ves !== undefined ? row.fondo_ves : (montoVes * (pctFondo / 100));
-        const fondoUsd = tasaCambio > 0 ? fondoVes / tasaCambio : 0;
-
-        const utilidadVes = montoVes - fondoVes;
-        const utilidadUsd = tasaCambio > 0 ? utilidadVes / tasaCambio : 0;
-
-        totalVes += montoVes;
-        totalFondo += fondoVes;
-        totalUtilidadVes += utilidadVes;
-        totalUtilidadUsd += utilidadUsd;
-
-        tbody.innerHTML += `
-            <tr>
-                <td>${row.fecha}</td>
-                <td>${formatCurrency(montoVes, 'VES')}</td>
-                <td>${formatCurrency(fondoVes, 'VES')} <span style="font-size: 11px; color: var(--text-secondary);">(${pctFondo}%)</span></td>
-                <td>${formatCurrency(utilidadVes, 'VES')}</td>
-                <td>${formatCurrency(utilidadUsd, 'USD')}</td>
-            </tr>
-        `;
-    });
-
-    if (filteredData.length > 0) {
-        tbody.innerHTML += `
-            <tr style="background-color: rgba(255,255,255,0.05); font-weight: bold;">
-                <td style="text-align: right; color: var(--text-secondary);">TOTAL:</td>
-                <td style="color: #2ecc71;">${formatCurrency(totalVes, 'VES')}</td>
-                <td style="color: #f1c40f;">${formatCurrency(totalFondo, 'VES')}</td>
-                <td style="color: #2ecc71;">${formatCurrency(totalUtilidadVes, 'VES')}</td>
-                <td style="color: #2ecc71;">${formatCurrency(totalUtilidadUsd, 'USD')}</td>
-            </tr>
-        `;
-    } else {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-secondary);">No hay ingresos registrados</td></tr>';
-    }
-}
-
-async function loadGastosTable() {
-    const data = firebaseData.gastos_mes || [];
-    const tbody = document.querySelector('#expense-table tbody');
-    tbody.innerHTML = '';
-
-    data.forEach(row => {
-        const estadoClass = row.estado === 'pagado' ? 'status-paid' : 'status-pending';
-        tbody.innerHTML += `
-            <tr>
+        loadGastos() {
+            const data = App.state.data.gastos_mes || [];
+            const tbody = document.querySelector('#expense-table tbody');
+            const rowHtml = (row) => `<tr>
                 <td>${row.fecha}</td>
                 <td>${row.categoria}</td>
                 <td>${row.descripcion}</td>
-                <td class="${estadoClass}">${row.estado.toUpperCase()}</td>
-                <td>${formatCurrency(row.monto_ves, 'VES')}</td>
-                <td>${formatCurrency(row.monto_usd, 'USD')}</td>
-            </tr>
-        `;
-    });
-}
+                <td class="${row.estado === 'pagado' ? 'status-paid' : 'status-pending'}">${row.estado.toUpperCase()}</td>
+                <td>${App.format.currency(row.monto_ves, 'VES')}</td>
+                <td>${App.format.currency(row.monto_usd, 'USD')}</td>
+            </tr>`;
+            App.tables.render(tbody, data, rowHtml, 'No hay gastos registrados en este período.');
+        },
 
-function loadFacturasTable() {
-    const data = firebaseData.facturas_pendientes || [];
-    const tbody = document.querySelector('#facturas-table tbody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
+        loadFacturas() {
+            const data = App.state.data.facturas_pendientes || [];
+            const tbody = document.querySelector('#facturas-table tbody');
+            const tasaCambio = parseFloat(App.state.data.resumen?.tasa_cambio) || 1;
+            let totalPendiente = 0;
 
-    if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-secondary);">No hay facturas pendientes por pagar</td></tr>';
-        if (document.getElementById('facturas-total-ves')) document.getElementById('facturas-total-ves').innerText = 'Bs. 0.00';
-        return;
-    }
+            const rowHtml = (row) => {
+                totalPendiente += row.pendiente_usd || 0;
+                const diffDays = (new Date() - new Date(row.fecha + 'T00:00:00')) / (1000 * 60 * 60 * 24);
+                const dateStyle = diffDays > 30 ? 'color: var(--danger); font-weight: bold;' : '';
+                return `<tr>
+                    <td style="${dateStyle}">${row.fecha}</td>
+                    <td>${row.autobus}</td>
+                    <td>${row.descripcion}</td>
+                    <td>${App.format.currency(row.monto_usd, 'USD')}</td>
+                    <td>${App.format.currency(row.abonado_usd, 'USD')}</td>
+                    <td style="color: var(--danger); font-weight: bold;">${App.format.currency(row.pendiente_usd, 'USD')}</td>
+                </tr>`;
+            };
+            
+            App.tables.render(tbody, data, rowHtml, 'No hay facturas pendientes por pagar.');
+            document.getElementById('facturas-total-ves').innerText = App.format.currency(totalPendiente * tasaCambio, 'VES');
+        },
 
-    let totalMonto = 0;
-    let totalAbonado = 0;
-    let totalPendiente = 0;
-
-    const today = new Date();
-
-    const resumen = firebaseData.resumen || {};
-    const tasaCambio = parseFloat(resumen.tasa_cambio) || 1;
-
-    data.forEach(row => {
-        totalMonto += row.monto_usd || 0;
-        totalAbonado += row.abonado_usd || 0;
-        totalPendiente += row.pendiente_usd || 0;
-
-        // Calcular días transcurridos
-        const invoiceDate = new Date(row.fecha + 'T00:00:00');
-        const diffDays = (today - invoiceDate) / (1000 * 60 * 60 * 24);
-        const dateStyle = diffDays > 30 ? 'color: var(--danger); font-weight: bold;' : '';
-
-        tbody.innerHTML += `
-            <tr>
-                <td style="${dateStyle}">${row.fecha}</td>
-                <td>${row.autobus}</td>
-                <td>${row.descripcion}</td>
-                <td>${formatCurrency(row.monto_usd, 'USD')}</td>
-                <td>${formatCurrency(row.abonado_usd, 'USD')}</td>
-                <td style="color: #f38ba8; font-weight: bold;">${formatCurrency(row.pendiente_usd, 'USD')}</td>
-            </tr>
-        `;
-    });
-
-    tbody.innerHTML += `
-        <tr style="background-color: rgba(255,255,255,0.05); font-weight: bold;">
-            <td colspan="3" style="text-align: right; color: var(--text-secondary);">TOTAL:</td>
-            <td style="color: #2ecc71;">${formatCurrency(totalMonto, 'USD')}</td>
-            <td style="color: #2ecc71;">${formatCurrency(totalAbonado, 'USD')}</td>
-            <td style="color: #f38ba8;">${formatCurrency(totalPendiente, 'USD')}</td>
-        </tr>
-    `;
-
-    if (document.getElementById('facturas-total-ves')) {
-        document.getElementById('facturas-total-ves').innerText = formatCurrency(totalPendiente * tasaCambio, 'VES');
-    }
-}
-
-function loadAlarmasTable() {
-    const data = firebaseData.alarmas || [];
-    const tbody = document.querySelector('#alarms-table tbody');
-    tbody.innerHTML = '';
-
-    if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-secondary);">No hay alarmas pendientes</td></tr>';
-        return;
-    }
-
-    data.forEach(row => {
-        let estado = "";
-        let badgeClass = "";
-        const dias = row.dias_restantes;
-
-        if (dias <= 0) {
-            estado = "⚠ VENCIDO";
-            badgeClass = "badge-vencido";
-        } else if (dias <= 3) {
-            estado = "URGENTE";
-            badgeClass = "badge-urgente";
-        } else if (dias <= 7) {
-            estado = "POR VENCER";
-            badgeClass = "badge-por-vencer";
-        } else {
-            estado = "EN TIEMPO";
-            badgeClass = "badge-en-tiempo";
+        loadAlarmas() {
+            const data = App.state.data.alarmas || [];
+            const tbody = document.querySelector('#alarms-table tbody');
+            const rowHtml = (row) => {
+                const dias = row.dias_restantes;
+                const estadoInfo = dias <= 0 ? { text: "⚠ VENCIDO", class: "badge-vencido" }
+                               : dias <= 3 ? { text: "URGENTE", class: "badge-urgente" }
+                               : dias <= 7 ? { text: "POR VENCER", class: "badge-por-vencer" }
+                               : { text: "EN TIEMPO", class: "badge-en-tiempo" };
+                return `<tr>
+                    <td><span class="status-badge ${estadoInfo.class}">${estadoInfo.text}</span></td>
+                    <td>${row.placa}</td>
+                    <td>${row.tipo}</td>
+                    <td>${row.ultimo || 'Nunca'}</td>
+                    <td>${row.proximo || 'No programado'}</td>
+                </tr>`;
+            };
+            App.tables.render(tbody, data, rowHtml, 'No hay alarmas pendientes.');
         }
+    },
 
-        tbody.innerHTML += `
-            <tr>
-                <td><span class="status-badge ${badgeClass}">${estado}</span></td>
-                <td>${row.placa}</td>
-                <td>${row.tipo}</td>
-                <td>${row.ultimo || 'Nunca'}</td>
-                <td>${row.proximo || 'No programado'}</td>
-            </tr>
-        `;
-    });
-}
+    // --- FORMATTERS ---
+    format: {
+        currency: (amount, currency) => new Intl.NumberFormat('es-VE', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount)
+    },
 
-// Initial Load
-document.addEventListener('DOMContentLoaded', () => {
-    updateDashboard().catch(err => {
-        console.error("Error fatal en dashboard:", err);
-        alert("No se pudo conectar con el servidor. Verifica que la ventana negra de BusControl esté abierta.");
-    });
-});
-
-// PWA Install Logic
-let deferredPrompt;
-const pwaBanner = document.getElementById('pwa-banner');
-const btnInstall = document.getElementById('btn-install');
-const btnDismiss = document.getElementById('btn-dismiss');
-
-window.addEventListener('beforeinstallprompt', (e) => {
-    // Prevenir que el mini-info-bar de Chrome aparezca en smartphones
-    e.preventDefault();
-    deferredPrompt = e;
-
-    // Mostrar nuestro banner solo si el usuario no lo ha descartado antes
-    if (!localStorage.getItem('pwaDismissed')) {
-        pwaBanner.classList.add('show');
+    // --- PWA & MOBILE ---
+    pwa: {
+        deferredPrompt: null,
+        init() {
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('service-worker.js')
+                        .then(() => console.log('Service Worker registrado.'))
+                        .catch(err => console.error('Error en Service Worker:', err));
+                });
+            }
+            window.addEventListener('beforeinstallprompt', App.pwa.handleBeforeInstallPrompt);
+            document.getElementById('btn-install')?.addEventListener('click', App.pwa.install);
+            document.getElementById('btn-dismiss')?.addEventListener('click', App.pwa.dismiss);
+        },
+        handleBeforeInstallPrompt(e) {
+            e.preventDefault();
+            App.pwa.deferredPrompt = e;
+            if (!localStorage.getItem('pwaDismissed')) {
+                document.getElementById('pwa-banner')?.classList.add('show');
+            }
+        },
+        async install() {
+            if (App.pwa.deferredPrompt) {
+                document.getElementById('pwa-banner')?.classList.remove('show');
+                App.pwa.deferredPrompt.prompt();
+                App.pwa.deferredPrompt = null;
+            }
+        },
+        dismiss() {
+            document.getElementById('pwa-banner')?.classList.remove('show');
+            localStorage.setItem('pwaDismissed', 'true');
+        }
+    },
+    mobile: {
+        init() {
+            document.addEventListener('click', (event) => {
+                const sidebar = document.getElementById('sidebar');
+                const toggle = document.querySelector('.menu-toggle');
+                if (sidebar && toggle && !sidebar.contains(event.target) && !toggle.contains(event.target) && sidebar.classList.contains('active')) {
+                    sidebar.classList.remove('active');
+                }
+            });
+        },
+        toggleSidebar() {
+            document.getElementById('sidebar')?.classList.toggle('active');
+        }
     }
-});
+};
 
-btnInstall.addEventListener('click', async () => {
-    if (deferredPrompt) {
-        pwaBanner.classList.remove('show');
-        deferredPrompt.prompt();
-        deferredPrompt = null;
-    }
-});
-
-btnDismiss.addEventListener('click', () => {
-    pwaBanner.classList.remove('show');
-    localStorage.setItem('pwaDismissed', 'true');
-});
+// --- GLOBAL ENTRY POINT ---
+document.addEventListener('DOMContentLoaded', App.init);

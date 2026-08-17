@@ -12,94 +12,12 @@
     <meta name="theme-color" content="#2c3e50">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
-    <style>
-        /* Estilos para Móvil y PWA */
-        .mobile-header {
-            display: none;
-        }
-
-        @media (max-width: 768px) {
-            .app-container {
-                flex-direction: column;
-            }
-
-            .sidebar {
-                position: fixed;
-                top: 0;
-                left: -260px;
-                height: 100vh;
-                z-index: 1000;
-                transition: left 0.3s ease;
-                width: 250px;
-                box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
-            }
-
-            .sidebar.active {
-                left: 0;
-            }
-
-            .main-content {
-                width: 100%;
-                padding-top: 70px;
-                /* Espacio para header móvil */
-            }
-
-            .mobile-header {
-                display: flex !important;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 60px;
-                background-color: #2c3e50;
-                color: white;
-                z-index: 999;
-                align-items: center;
-                padding: 0 15px;
-                box-sizing: border-box;
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            }
-
-            .menu-toggle {
-                background: none;
-                border: none;
-                color: white;
-                font-size: 24px;
-                cursor: pointer;
-                margin-right: 15px;
-            }
-
-            .cards-grid,
-            .charts-container {
-                grid-template-columns: 1fr !important;
-            }
-
-            .header-controls {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .header-controls select,
-            .header-controls button {
-                width: 100%;
-            }
-
-            /* Ocultar logo del sidebar en móvil ya que está en el header */
-            .sidebar .logo {
-                display: none;
-            }
-
-            .sidebar ul {
-                margin-top: 60px;
-            }
-        }
-    </style>
 </head>
 
 <body>
     <!-- Header Móvil -->
     <div class="mobile-header">
-        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <button class="menu-toggle" onclick="App.mobile.toggleSidebar()">☰</button>
         <h3>BusControl</h3>
     </div>
 
@@ -110,12 +28,12 @@
                 <h2>🚌 BusControl</h2>
             </div>
             <ul class="nav-links">
-                <li class="active" onclick="showSection('dashboard')">📊 Resumen</li>
-                <li onclick="showSection('ingresos')">📈 Ingresos</li>
-                <li onclick="showSection('informe')">🚌 Informe Autobús</li>
-                <li onclick="showSection('gastos')">💳 Gastos</li>
-                <li onclick="showSection('facturas')">📄 Facturas Pendientes</li>
-                <li onclick="showSection('alarmas')">⚠️ Alarmas</li>
+                <li class="active" onclick="App.ui.showSection('dashboard')">📊 Resumen</li>
+                <li onclick="App.ui.showSection('ingresos')">📈 Ingresos</li>
+                <li onclick="App.ui.showSection('informe')">🚌 Informe Autobús</li>
+                <li onclick="App.ui.showSection('gastos')">💳 Gastos</li>
+                <li onclick="App.ui.showSection('facturas')">📄 Facturas Pendientes</li>
+                <li onclick="App.ui.showSection('alarmas')">⚠️ Alarmas</li>
             </ul>
         </nav>
 
@@ -125,11 +43,11 @@
                 <div class="header-title">
                     <h1 id="page-title">Resumen General</h1>
                     <p class="subtitle">Estado actual de la flota y finanzas</p>
-                    <p class="subtitle" id="last-sync" style="font-size: 12px; color: var(--success); margin-top: 5px;">
-                        ☁️ Última sincronización: Cargando...</p>
+                    <p class="subtitle" id="last-sync" style="font-size: 12px; color: var(--success); margin-top: 5px;"> 
+                        ☁️ Última sincronización: Cargando... | Tasa: Bs. 0.00</p>
                 </div>
                 <div class="header-controls">
-                    <button onclick="updateDashboard()" class="refresh-btn">🔄 Actualizar</button>
+                    <button onclick="App.update()" class="refresh-btn">🔄 Actualizar</button>
                 </div>
             </header>
 
@@ -197,7 +115,7 @@
                     <h2 style="margin: 0;">Ingresos Diarios (Mes Actual)</h2>
                     <div class="filters" style="display: flex; gap: 10px; align-items: center;">
                         <label for="bus-selector-ingresos" style="color: var(--text-secondary);">Autobús:</label>
-                        <select id="bus-selector-ingresos" onchange="loadIngresosTable()"
+                        <select id="bus-selector-ingresos" onchange="App.tables.loadIngresos()"
                             style="padding: 8px; border-radius: 5px; background: var(--bg-card); color: white; border: 1px solid #444;">
                             <option value="">Seleccione un autobús...</option>
                         </select>
@@ -228,7 +146,7 @@
                     <h2 style="margin: 0;">Rendimiento por Autobús (Mes Actual)</h2>
                     <div class="filters" style="display: flex; gap: 10px; align-items: center;">
                         <label for="bus-selector-informe" style="color: var(--text-secondary);">Autobús:</label>
-                        <select id="bus-selector-informe" onchange="loadInformeAutobus()"
+                        <select id="bus-selector-informe" onchange="App.tables.loadInformeAutobus()"
                             style="padding: 8px; border-radius: 5px; background: var(--bg-card); color: white; border: 1px solid #444;">
                             <option value="">Seleccione un autobús...</option>
                         </select>
@@ -378,6 +296,10 @@
             </section>
 
         </main>
+        <footer class="app-footer">
+            <p>&copy; 2024 BusControl. Todos los derechos reservados.</p>
+            <p>Desarrollado por AJP Software.</p>
+        </footer>
 
         <!-- PWA Install Banner -->
         <div id="pwa-banner" class="pwa-banner">
@@ -392,30 +314,6 @@
         </div>
     </div>
     <script src="app.js"></script>
-    <script>
-        // Funciones para Móvil
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('active');
-        }
-
-        // Cerrar sidebar al hacer click fuera (opcional pero recomendado)
-        document.addEventListener('click', function (event) {
-            const sidebar = document.getElementById('sidebar');
-            const toggle = document.querySelector('.menu-toggle');
-            if (!sidebar.contains(event.target) && !toggle.contains(event.target) && sidebar.classList.contains('active')) {
-                sidebar.classList.remove('active');
-            }
-        });
-
-        // Registrar Service Worker para PWA
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('service-worker.js')
-                    .then(reg => console.log('SW registrado'))
-                    .catch(err => console.log('SW error:', err));
-            });
-        }
-    </script>
 </body>
 
 </html>
